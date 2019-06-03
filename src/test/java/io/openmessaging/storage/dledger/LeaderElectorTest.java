@@ -21,13 +21,12 @@ import io.openmessaging.storage.dledger.protocol.AppendEntryRequest;
 import io.openmessaging.storage.dledger.protocol.AppendEntryResponse;
 import io.openmessaging.storage.dledger.protocol.DLedgerResponseCode;
 import io.openmessaging.storage.dledger.utils.DLedgerUtils;
-import org.junit.Assert;
-import org.junit.Test;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.junit.Assert;
+import org.junit.Test;
 
 public class LeaderElectorTest extends ServerTestHarness {
 
@@ -293,6 +292,111 @@ public class LeaderElectorTest extends ServerTestHarness {
         Assert.assertTrue(followerNum.get() >= 1);
         Assert.assertNotNull(leaderServer);
         Assert.assertEquals(preferredLeaderId, leaderServer.getdLedgerConfig().getSelfId());
+    }
+
+    @Test
+    public void testSymmetricNetworkPartition() throws Exception {
+        String group = UUID.randomUUID().toString();
+        String peers = String.format("n0-localhost:%d;n1-localhost:%d;n2-localhost:%d", nextPort(), nextPort(), nextPort());
+        List<DLedgerServer> servers = new ArrayList<>();
+        servers.add(launchServer(group, peers, "n0"));
+        servers.add(launchServer(group, peers, "n1"));
+        servers.add(launchServer(group, peers, "n2"));
+
+        AtomicInteger leaderNum = new AtomicInteger(0);
+        AtomicInteger followerNum = new AtomicInteger(0);
+        long start = System.currentTimeMillis();
+        while (parseServers(servers, leaderNum, followerNum) == null && DLedgerUtils.elapsed(start) < 1000) {
+            Thread.sleep(100);
+        }
+        Thread.sleep(300);
+        leaderNum.set(0);
+        followerNum.set(0);
+
+        DLedgerServer leaderServer = parseServers(servers, leaderNum, followerNum);
+        long term = leaderServer.getMemberState().currTerm();
+
+        Assert.assertEquals(1, leaderNum.get());
+        Assert.assertEquals(2, followerNum.get());
+        Assert.assertNotNull(leaderServer);
+
+
+        DLedgerServer followerServer1 = null;
+        DLedgerServer followerServer2 = null;
+
+        boolean firstFollower = true;
+        for (DLedgerServer server : servers) {
+            if (server == leaderServer) {
+                continue;
+            }
+            if (firstFollower) {
+                followerServer1 = server;
+                firstFollower = false;
+            } else {
+                followerServer2 = server;
+            }
+        }
+
+        simulatePartition(followerServer1, followerServer2);
+        simulatePartition(followerServer1, leaderServer);
+
+        Thread.sleep(5000);
+
+        Assert.assertEquals(term,leaderServer.getMemberState().currTerm());
+        Assert.assertEquals(term,followerServer1.getMemberState().currTerm());
+        Assert.assertEquals(term,followerServer2.getMemberState().currTerm());
+    }
+
+    @Test
+    public void testAsymmetricNetworkPartition() throws Exception {
+        String group = UUID.randomUUID().toString();
+        String peers = String.format("n0-localhost:%d;n1-localhost:%d;n2-localhost:%d", nextPort(), nextPort(), nextPort());
+        List<DLedgerServer> servers = new ArrayList<>();
+        servers.add(launchServer(group, peers, "n0"));
+        servers.add(launchServer(group, peers, "n1"));
+        servers.add(launchServer(group, peers, "n2"));
+
+        AtomicInteger leaderNum = new AtomicInteger(0);
+        AtomicInteger followerNum = new AtomicInteger(0);
+        long start = System.currentTimeMillis();
+        while (parseServers(servers, leaderNum, followerNum) == null && DLedgerUtils.elapsed(start) < 1000) {
+            Thread.sleep(100);
+        }
+        Thread.sleep(300);
+        leaderNum.set(0);
+        followerNum.set(0);
+
+        DLedgerServer leaderServer = parseServers(servers, leaderNum, followerNum);
+        long term = leaderServer.getMemberState().currTerm();
+
+        Assert.assertEquals(1, leaderNum.get());
+        Assert.assertEquals(2, followerNum.get());
+        Assert.assertNotNull(leaderServer);
+
+
+        DLedgerServer followerServer1 = null;
+        DLedgerServer followerServer2 = null;
+
+        boolean firstFollower = true;
+        for (DLedgerServer server : servers) {
+            if (server == leaderServer) {
+                continue;
+            }
+            if (firstFollower) {
+                followerServer1 = server;
+                firstFollower = false;
+            } else {
+                followerServer2 = server;
+            }
+        }
+
+        simulatePartition(followerServer1, leaderServer);
+
+        Thread.sleep(5000);
+
+        Assert.assertEquals(term,leaderServer.getMemberState().currTerm());
+        Assert.assertEquals(term,followerServer1.getMemberState().currTerm());
+        Assert.assertEquals(term,followerServer2.getMemberState().currTerm());
     }
 }
 
