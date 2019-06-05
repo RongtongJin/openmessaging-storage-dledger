@@ -95,7 +95,7 @@ public class DLedgerLeaderElector {
     }
 
     public CompletableFuture<HeartBeatResponse> handleHeartBeat(HeartBeatRequest request) throws Exception {
-
+        // TODO：m/s模式对不可能的状态进行判断
         if (!memberState.isPeerMember(request.getLeaderId())) {
             logger.warn("[BUG] [HandleHeartBeat] remoteId={} is an unknown member", request.getLeaderId());
             return CompletableFuture.completedFuture(new HeartBeatResponse().term(memberState.currTerm()).code(DLedgerResponseCode.UNKNOWN_MEMBER.getCode()));
@@ -287,6 +287,8 @@ public class DLedgerLeaderElector {
             });
         }
         beatLatch.await(heartBeatTimeIntervalMs, TimeUnit.MILLISECONDS);
+
+        // TODO：m/s模式对不可能的状态进行判断，无需降级
         if (memberState.isQuorum(succNum.get())) {
             lastSuccHeartBeatTime = System.currentTimeMillis();
         } else {
@@ -305,6 +307,7 @@ public class DLedgerLeaderElector {
     }
 
     private void maintainAsLeader() throws Exception {
+        //TODO m/s 不需要检测状态
         if (DLedgerUtils.elapsed(lastSendHeartBeatTime) > heartBeatTimeIntervalMs) {
             long term;
             String leaderId;
@@ -322,6 +325,7 @@ public class DLedgerLeaderElector {
     }
 
     private void maintainAsFollower() {
+        // TODO m/s 无需降级
         if (DLedgerUtils.elapsed(lastLeaderHeartBeatTime) > 2 * heartBeatTimeIntervalMs) {
             synchronized (memberState) {
                 if (memberState.isFollower() && (DLedgerUtils.elapsed(lastLeaderHeartBeatTime) > maxHeartBeatLeak * heartBeatTimeIntervalMs)) {
@@ -466,7 +470,7 @@ public class DLedgerLeaderElector {
             nextTimeToRequestVote = getNextTimeToRequestVote();
             changeRoleToCandidate(knownMaxTermInGroup.get());
         } else if (alreadyHasLeader.get()) {
-            parseResult = VoteResponse.ParseResult.WAIT_TO_VOTE_NEXT;
+            parseResult = VoteResponse.ParseResult.WAIT_TO_REVOTE;
             nextTimeToRequestVote = getNextTimeToRequestVote() + heartBeatTimeIntervalMs * maxHeartBeatLeak;
         } else if (!memberState.isQuorum(validNum.get())) {
             parseResult = VoteResponse.ParseResult.WAIT_TO_REVOTE;

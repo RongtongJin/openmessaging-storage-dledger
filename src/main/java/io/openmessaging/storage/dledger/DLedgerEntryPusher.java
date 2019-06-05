@@ -76,6 +76,7 @@ public class DLedgerEntryPusher {
     }
 
     public void startup() {
+        // TODO:根据同步异步启动相应的线程
         entryHandler.start();
         quorumAckChecker.start();
         for (EntryDispatcher dispatcher : dispatcherMap.values()) {
@@ -136,6 +137,7 @@ public class DLedgerEntryPusher {
 
     public CompletableFuture<AppendEntryResponse> waitAck(DLedgerEntry entry) {
         updatePeerWaterMark(entry.getTerm(), memberState.getSelfId(), entry.getIndex());
+        // TODO:这里根据是同步还是异步，若是异步直接返回
         if (memberState.getPeerMap().size() == 1) {
             AppendEntryResponse response = new AppendEntryResponse();
             response.setGroup(memberState.getGroup());

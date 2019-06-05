@@ -72,6 +72,7 @@ public class DLedgerServer implements DLedgerProtocolHander {
         this.dLedgerStore.startup();
         this.dLedgerRpcService.startup();
         this.dLedgerEntryPusher.startup();
+        // TODO:增加判断,并指定leader和follower
         this.dLedgerLeaderElector.startup();
     }
 
