@@ -48,6 +48,6 @@ public class AppendCommand extends BaseCommand {
             AppendEntryResponse response = dLedgerClient.append(data.getBytes());
             logger.info("Append Result:{}", JSON.toJSONString(response));
         }
-        dLedgerClient.shutdown();
+//        dLedgerClient.shutdown();
     }
 }
