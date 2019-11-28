@@ -61,6 +61,8 @@ public class DLedgerEntryPusher {
 
     private QuorumAckChecker quorumAckChecker = new QuorumAckChecker(logger);
 
+    private ClearCache clearCache = new ClearCache(logger);
+
     private Map<String, EntryDispatcher> dispatcherMap = new HashMap<>();
 
     public DLedgerEntryPusher(DLedgerConfig dLedgerConfig, MemberState memberState, DLedgerStore dLedgerStore,
@@ -79,6 +81,7 @@ public class DLedgerEntryPusher {
     public void startup() {
         entryHandler.start();
         quorumAckChecker.start();
+        clearCache.start();
         for (EntryDispatcher dispatcher : dispatcherMap.values()) {
             dispatcher.start();
         }
@@ -87,6 +90,7 @@ public class DLedgerEntryPusher {
     public void shutdown() {
         entryHandler.shutdown();
         quorumAckChecker.shutdown();
+        clearCache.shutdown();
         for (EntryDispatcher dispatcher : dispatcherMap.values()) {
             dispatcher.shutdown();
         }
@@ -310,6 +314,32 @@ public class DLedgerEntryPusher {
             }
         }
     }
+
+    private class ClearCache extends ShutdownAbleThread {
+
+        public ClearCache(Logger logger) {
+            super("ClearCache", logger);
+        }
+
+        @Override
+        public void doWork() {
+            try {
+                long endIndex = dLedgerStore.getLedgerEndIndex();
+                for (long index : entryCache.keySet()) {
+                    if (endIndex - index > 200) {
+                        entryCache.remove(index);
+                    }
+                }
+                waitForRunning(10);
+            } catch (Exception e) {
+                logger.error("error in {}", getName(), e);
+            }
+
+        }
+
+    }
+
+
 
     private DLedgerEntry getDLedgerEntry(long index) {
         return entryCache.containsKey(index) ? entryCache.get(index) : dLedgerStore.get(index);
