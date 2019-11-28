@@ -24,9 +24,9 @@ import io.openmessaging.storage.dledger.entry.DLedgerEntry;
 import io.openmessaging.storage.dledger.entry.DLedgerEntryCoder;
 import io.openmessaging.storage.dledger.protocol.DLedgerResponseCode;
 import io.openmessaging.storage.dledger.store.DLedgerStore;
+import io.openmessaging.storage.dledger.utils.DLedgerUtils;
 import io.openmessaging.storage.dledger.utils.IOUtils;
 import io.openmessaging.storage.dledger.utils.PreConditions;
-import io.openmessaging.storage.dledger.utils.DLedgerUtils;
 import java.io.File;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -601,10 +601,10 @@ public class DLedgerMmapFileStore extends DLedgerStore {
                 storeBaseRatio = DLedgerUtils.getDiskPartitionSpaceUsedPercent(dLedgerConfig.getStoreBaseDir());
                 dataRatio = DLedgerUtils.getDiskPartitionSpaceUsedPercent(dLedgerConfig.getDataStorePath());
                 long hourOfMs = 3600L * 1000L;
-                long fileReservedTimeMs = dLedgerConfig.getFileReservedHours() *  hourOfMs;
+                long fileReservedTimeMs = dLedgerConfig.getFileReservedHours() * hourOfMs;
                 if (fileReservedTimeMs < hourOfMs) {
                     logger.warn("The fileReservedTimeMs={} is smaller than hourOfMs={}", fileReservedTimeMs, hourOfMs);
-                    fileReservedTimeMs =  hourOfMs;
+                    fileReservedTimeMs = hourOfMs;
                 }
                 //If the disk is full, should prevent more data to get in
                 DLedgerMmapFileStore.this.isDiskFull = isNeedForbiddenWrite();
