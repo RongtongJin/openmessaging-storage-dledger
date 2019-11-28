@@ -323,18 +323,18 @@ public class DLedgerEntryPusher {
 
         @Override
         public void doWork() {
-            if(!memberState.isLeader()){
-                entryCache.clear();
-                return ;
-            }
             try {
+                waitForRunning(10);
+                if (!memberState.isLeader()) {
+                    entryCache.clear();
+                    return;
+                }
                 long endIndex = dLedgerStore.getLedgerEndIndex();
                 for (long index : entryCache.keySet()) {
                     if (endIndex - index > 200) {
                         entryCache.remove(index);
                     }
                 }
-                waitForRunning(10);
             } catch (Exception e) {
                 logger.error("error in {}", getName(), e);
             }
@@ -342,8 +342,6 @@ public class DLedgerEntryPusher {
         }
 
     }
-
-
 
     private DLedgerEntry getDLedgerEntry(long index) {
         return entryCache.containsKey(index) ? entryCache.get(index) : dLedgerStore.get(index);
