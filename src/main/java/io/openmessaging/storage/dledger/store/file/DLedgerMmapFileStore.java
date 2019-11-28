@@ -328,38 +328,38 @@ public class DLedgerMmapFileStore extends DLedgerStore {
         ByteBuffer indexBuffer = localIndexBuffer.get();
         DLedgerEntryCoder.encode(entry, dataBuffer);
         int entrySize = dataBuffer.remaining();
-        synchronized (memberState) {
-            PreConditions.check(memberState.isLeader(), DLedgerResponseCode.NOT_LEADER, null);
-            PreConditions.check(memberState.getTransferee() == null, DLedgerResponseCode.LEADER_TRANSFERRING, null);
-            long nextIndex = ledgerEndIndex + 1;
-            entry.setIndex(nextIndex);
-            entry.setTerm(memberState.currTerm());
-            entry.setMagic(CURRENT_MAGIC);
-            DLedgerEntryCoder.setIndexTerm(dataBuffer, nextIndex, memberState.currTerm(), CURRENT_MAGIC);
-            long prePos = dataFileList.preAppend(dataBuffer.remaining());
-            entry.setPos(prePos);
-            PreConditions.check(prePos != -1, DLedgerResponseCode.DISK_ERROR, null);
-            DLedgerEntryCoder.setPos(dataBuffer, prePos);
-            for (AppendHook writeHook : appendHooks) {
-                writeHook.doHook(entry, dataBuffer.slice(), DLedgerEntry.BODY_OFFSET);
-            }
-            long dataPos = dataFileList.append(dataBuffer.array(), 0, dataBuffer.remaining());
-            PreConditions.check(dataPos != -1, DLedgerResponseCode.DISK_ERROR, null);
-            PreConditions.check(dataPos == prePos, DLedgerResponseCode.DISK_ERROR, null);
-            DLedgerEntryCoder.encodeIndex(dataPos, entrySize, CURRENT_MAGIC, nextIndex, memberState.currTerm(), indexBuffer);
-            long indexPos = indexFileList.append(indexBuffer.array(), 0, indexBuffer.remaining(), false);
-            PreConditions.check(indexPos == entry.getIndex() * INDEX_UNIT_SIZE, DLedgerResponseCode.DISK_ERROR, null);
-            if (logger.isDebugEnabled()) {
-                logger.info("[{}] Append as Leader {} {}", memberState.getSelfId(), entry.getIndex(), entry.getBody().length);
-            }
-            ledgerEndIndex++;
-            ledgerEndTerm = memberState.currTerm();
-            if (ledgerBeginIndex == -1) {
-                ledgerBeginIndex = ledgerEndIndex;
-            }
-            updateLedgerEndIndexAndTerm();
-            return entry;
+//        synchronized (memberState) {
+        PreConditions.check(memberState.isLeader(), DLedgerResponseCode.NOT_LEADER, null);
+        PreConditions.check(memberState.getTransferee() == null, DLedgerResponseCode.LEADER_TRANSFERRING, null);
+        long nextIndex = ledgerEndIndex + 1;
+        entry.setIndex(nextIndex);
+        entry.setTerm(memberState.currTerm());
+        entry.setMagic(CURRENT_MAGIC);
+        DLedgerEntryCoder.setIndexTerm(dataBuffer, nextIndex, memberState.currTerm(), CURRENT_MAGIC);
+        long prePos = dataFileList.preAppend(dataBuffer.remaining());
+        entry.setPos(prePos);
+        PreConditions.check(prePos != -1, DLedgerResponseCode.DISK_ERROR, null);
+        DLedgerEntryCoder.setPos(dataBuffer, prePos);
+        for (AppendHook writeHook : appendHooks) {
+            writeHook.doHook(entry, dataBuffer.slice(), DLedgerEntry.BODY_OFFSET);
         }
+        long dataPos = dataFileList.append(dataBuffer.array(), 0, dataBuffer.remaining());
+        PreConditions.check(dataPos != -1, DLedgerResponseCode.DISK_ERROR, null);
+        PreConditions.check(dataPos == prePos, DLedgerResponseCode.DISK_ERROR, null);
+        DLedgerEntryCoder.encodeIndex(dataPos, entrySize, CURRENT_MAGIC, nextIndex, memberState.currTerm(), indexBuffer);
+        long indexPos = indexFileList.append(indexBuffer.array(), 0, indexBuffer.remaining(), false);
+        PreConditions.check(indexPos == entry.getIndex() * INDEX_UNIT_SIZE, DLedgerResponseCode.DISK_ERROR, null);
+        if (logger.isDebugEnabled()) {
+            logger.info("[{}] Append as Leader {} {}", memberState.getSelfId(), entry.getIndex(), entry.getBody().length);
+        }
+        ledgerEndIndex++;
+        ledgerEndTerm = memberState.currTerm();
+        if (ledgerBeginIndex == -1) {
+            ledgerBeginIndex = ledgerEndIndex;
+        }
+        updateLedgerEndIndexAndTerm();
+        return entry;
+//        }
     }
 
     @Override
