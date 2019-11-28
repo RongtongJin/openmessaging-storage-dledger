@@ -323,6 +323,10 @@ public class DLedgerEntryPusher {
 
         @Override
         public void doWork() {
+            if(!memberState.isLeader()){
+                entryCache.clear();
+                return ;
+            }
             try {
                 long endIndex = dLedgerStore.getLedgerEndIndex();
                 for (long index : entryCache.keySet()) {
