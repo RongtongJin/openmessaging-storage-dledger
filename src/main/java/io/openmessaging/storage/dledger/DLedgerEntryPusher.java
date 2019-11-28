@@ -297,6 +297,13 @@ public class DLedgerEntryPusher {
                     lastCheckLeakTimeMs = System.currentTimeMillis();
                 }
                 lastQuorumIndex = quorumIndex;
+
+                long endIndex=dLedgerStore.getLedgerEndIndex();
+                for(long index:entryCache.keySet()){
+                    if(endIndex-index>200){
+                        entryCache.remove(index);
+                    }
+                }
             } catch (Throwable t) {
                 DLedgerEntryPusher.logger.error("Error in {}", getName(), t);
                 DLedgerUtils.sleep(100);
