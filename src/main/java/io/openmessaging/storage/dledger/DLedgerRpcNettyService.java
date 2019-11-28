@@ -95,7 +95,7 @@ public class DLedgerRpcNettyService extends DLedgerRpcService {
         };
         //start the remoting server
         NettyServerConfig nettyServerConfig = new NettyServerConfig();
-//        nettyServerConfig.setUseEpollNativeSelector(true);
+        nettyServerConfig.setUseEpollNativeSelector(true);
         nettyServerConfig.setListenPort(Integer.valueOf(memberState.getSelfAddr().split(":")[1]));
         this.remotingServer = new NettyRemotingServer(nettyServerConfig, null);
         this.remotingServer.registerProcessor(DLedgerRequestCode.METADATA.getCode(), protocolProcessor, null);

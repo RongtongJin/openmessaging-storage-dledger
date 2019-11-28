@@ -55,6 +55,7 @@ public class DLedgerEntryPusher {
 
     private Map<Long, ConcurrentMap<String, Long>> peerWaterMarksByTerm = new ConcurrentHashMap<>();
     private Map<Long, ConcurrentMap<Long, TimeoutFuture<AppendEntryResponse>>> pendingAppendResponsesByTerm = new ConcurrentHashMap<>();
+    private Map<Long, DLedgerEntry> entryCache = new ConcurrentHashMap<>();
 
     private EntryHandler entryHandler = new EntryHandler(logger);
 
@@ -152,6 +153,7 @@ public class DLedgerEntryPusher {
             if (old != null) {
                 logger.warn("[MONITOR] get old wait at index={}", entry.getIndex());
             }
+            entryCache.put(entry.getIndex(), entry);
             wakeUpDispatchers();
             return future;
         }
@@ -302,6 +304,10 @@ public class DLedgerEntryPusher {
         }
     }
 
+    private DLedgerEntry getDLedgerEntry(long index) {
+        return entryCache.containsKey(index) ? entryCache.get(index) : dLedgerStore.get(index);
+    }
+
     /**
      * This thread will be activated by the leader.
      * This thread will push the entry to follower(identified by peerId) and update the completed pushed index to index map.
@@ -386,7 +392,7 @@ public class DLedgerEntryPusher {
             }
         }
         private void doAppendInner(long index) throws Exception {
-            DLedgerEntry entry = dLedgerStore.get(index);
+            DLedgerEntry entry = getDLedgerEntry(index);
             PreConditions.check(entry != null, DLedgerResponseCode.UNKNOWN, "writeIndex=%d", index);
             checkQuotaAndWait(entry);
             PushEntryRequest request = buildPushRequest(entry, PushEntryRequest.Type.APPEND);
@@ -468,7 +474,7 @@ public class DLedgerEntryPusher {
 
         private void doTruncate(long truncateIndex) throws Exception {
             PreConditions.check(type.get() == PushEntryRequest.Type.TRUNCATE, DLedgerResponseCode.UNKNOWN);
-            DLedgerEntry truncateEntry = dLedgerStore.get(truncateIndex);
+            DLedgerEntry truncateEntry = getDLedgerEntry(truncateIndex);
             PreConditions.check(truncateEntry != null, DLedgerResponseCode.UNKNOWN);
             logger.info("[Push-{}]Will push data to truncate truncateIndex={} pos={}", peerId, truncateIndex, truncateEntry.getPos());
             PushEntryRequest truncateRequest = buildPushRequest(truncateEntry, PushEntryRequest.Type.TRUNCATE);
@@ -524,7 +530,8 @@ public class DLedgerEntryPusher {
                     compareIndex = dLedgerStore.getLedgerEndIndex();
                 }
 
-                DLedgerEntry entry = dLedgerStore.get(compareIndex);
+                DLedgerEntry entry = getDLedgerEntry(compareIndex);
+
                 PreConditions.check(entry != null, DLedgerResponseCode.INTERNAL_ERROR, "compareIndex=%d", compareIndex);
                 PushEntryRequest request = buildPushRequest(entry, PushEntryRequest.Type.COMPARE);
                 CompletableFuture<PushEntryResponse> responseFuture = dLedgerRpcService.push(request);
@@ -689,7 +696,7 @@ public class DLedgerEntryPusher {
             try {
                 PreConditions.check(compareIndex == request.getEntry().getIndex(), DLedgerResponseCode.UNKNOWN);
                 PreConditions.check(request.getType() == PushEntryRequest.Type.COMPARE, DLedgerResponseCode.UNKNOWN);
-                DLedgerEntry local = dLedgerStore.get(compareIndex);
+                DLedgerEntry local = getDLedgerEntry(compareIndex);
                 PreConditions.check(request.getEntry().equals(local), DLedgerResponseCode.INCONSISTENT_STATE);
                 future.complete(buildResponse(request, DLedgerResponseCode.SUCCESS.getCode()));
             } catch (Throwable t) {
@@ -750,7 +757,7 @@ public class DLedgerEntryPusher {
                 //Fall behind
                 if (index <= endIndex) {
                     try {
-                        DLedgerEntry local = dLedgerStore.get(index);
+                        DLedgerEntry local = getDLedgerEntry(index);
                         PreConditions.check(pair.getKey().getEntry().equals(local), DLedgerResponseCode.INCONSISTENT_STATE);
                         pair.getValue().complete(buildResponse(pair.getKey(), DLedgerResponseCode.SUCCESS.getCode()));
                         logger.warn("[PushFallBehind]The leader pushed an entry index={} smaller than current ledgerEndIndex={}, maybe the last ack is missed", index, endIndex);
