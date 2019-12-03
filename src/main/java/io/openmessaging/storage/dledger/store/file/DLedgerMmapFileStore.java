@@ -24,9 +24,9 @@ import io.openmessaging.storage.dledger.entry.DLedgerEntry;
 import io.openmessaging.storage.dledger.entry.DLedgerEntryCoder;
 import io.openmessaging.storage.dledger.protocol.DLedgerResponseCode;
 import io.openmessaging.storage.dledger.store.DLedgerStore;
+import io.openmessaging.storage.dledger.utils.DLedgerUtils;
 import io.openmessaging.storage.dledger.utils.IOUtils;
 import io.openmessaging.storage.dledger.utils.PreConditions;
-import io.openmessaging.storage.dledger.utils.DLedgerUtils;
 import java.io.File;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -331,34 +331,34 @@ public class DLedgerMmapFileStore extends DLedgerStore {
 //        synchronized (memberState) {
 //            PreConditions.check(memberState.isLeader(), DLedgerResponseCode.NOT_LEADER, null);
 //            PreConditions.check(memberState.getTransferee() == null, DLedgerResponseCode.LEADER_TRANSFERRING, null);
-            long nextIndex = ledgerEndIndex + 1;
-            entry.setIndex(nextIndex);
-            entry.setTerm(memberState.currTerm());
-            entry.setMagic(CURRENT_MAGIC);
-            DLedgerEntryCoder.setIndexTerm(dataBuffer, nextIndex, memberState.currTerm(), CURRENT_MAGIC);
-            long prePos = dataFileList.preAppend(dataBuffer.remaining());
-            entry.setPos(prePos);
+        long nextIndex = ledgerEndIndex + 1;
+        entry.setIndex(nextIndex);
+        entry.setTerm(memberState.currTerm());
+        entry.setMagic(CURRENT_MAGIC);
+        DLedgerEntryCoder.setIndexTerm(dataBuffer, nextIndex, memberState.currTerm(), CURRENT_MAGIC);
+        long prePos = dataFileList.preAppend(dataBuffer.remaining());
+        entry.setPos(prePos);
 //            PreConditions.check(prePos != -1, DLedgerResponseCode.DISK_ERROR, null);
-            DLedgerEntryCoder.setPos(dataBuffer, prePos);
-            for (AppendHook writeHook : appendHooks) {
-                writeHook.doHook(entry, dataBuffer.slice(), DLedgerEntry.BODY_OFFSET);
-            }
-            long dataPos = dataFileList.append(dataBuffer.array(), 0, dataBuffer.remaining());
+        DLedgerEntryCoder.setPos(dataBuffer, prePos);
+        for (AppendHook writeHook : appendHooks) {
+            writeHook.doHook(entry, dataBuffer.slice(), DLedgerEntry.BODY_OFFSET);
+        }
+        long dataPos = dataFileList.append(dataBuffer.array(), 0, dataBuffer.remaining());
 //            PreConditions.check(dataPos != -1, DLedgerResponseCode.DISK_ERROR, null);
 //            PreConditions.check(dataPos == prePos, DLedgerResponseCode.DISK_ERROR, null);
-            DLedgerEntryCoder.encodeIndex(dataPos, entrySize, CURRENT_MAGIC, nextIndex, memberState.currTerm(), indexBuffer);
-            long indexPos = indexFileList.append(indexBuffer.array(), 0, indexBuffer.remaining(), false);
+        DLedgerEntryCoder.encodeIndex(dataPos, entrySize, CURRENT_MAGIC, nextIndex, memberState.currTerm(), indexBuffer);
+        long indexPos = indexFileList.append(indexBuffer.array(), 0, indexBuffer.remaining(), false);
 //            PreConditions.check(indexPos == entry.getIndex() * INDEX_UNIT_SIZE, DLedgerResponseCode.DISK_ERROR, null);
-            if (logger.isDebugEnabled()) {
-                logger.info("[{}] Append as Leader {} {}", memberState.getSelfId(), entry.getIndex(), entry.getBody().length);
-            }
-            ledgerEndIndex++;
-            ledgerEndTerm = memberState.currTerm();
-            if (ledgerBeginIndex == -1) {
-                ledgerBeginIndex = ledgerEndIndex;
-            }
-            updateLedgerEndIndexAndTerm();
-            return entry;
+        if (logger.isDebugEnabled()) {
+            logger.info("[{}] Append as Leader {} {}", memberState.getSelfId(), entry.getIndex(), entry.getBody().length);
+        }
+        ledgerEndIndex++;
+        ledgerEndTerm = memberState.currTerm();
+        if (ledgerBeginIndex == -1) {
+            ledgerBeginIndex = ledgerEndIndex;
+        }
+        updateLedgerEndIndexAndTerm();
+        return entry;
 //        }
     }
 
@@ -421,22 +421,22 @@ public class DLedgerMmapFileStore extends DLedgerStore {
         int entrySize = dataBuffer.remaining();
 //        synchronized (memberState) {
 //            PreConditions.check(memberState.isFollower(), DLedgerResponseCode.NOT_FOLLOWER, "role=%s", memberState.getRole());
-            long nextIndex = ledgerEndIndex + 1;
+        long nextIndex = ledgerEndIndex + 1;
 //            PreConditions.check(nextIndex == entry.getIndex(), DLedgerResponseCode.INCONSISTENT_INDEX, null);
 //            PreConditions.check(leaderTerm == memberState.currTerm(), DLedgerResponseCode.INCONSISTENT_TERM, null);
 //            PreConditions.check(leaderId.equals(memberState.getLeaderId()), DLedgerResponseCode.INCONSISTENT_LEADER, null);
-            long dataPos = dataFileList.append(dataBuffer.array(), 0, dataBuffer.remaining());
+        long dataPos = dataFileList.append(dataBuffer.array(), 0, dataBuffer.remaining());
 //            PreConditions.check(dataPos == entry.getPos(), DLedgerResponseCode.DISK_ERROR, "%d != %d", dataPos, entry.getPos());
-            DLedgerEntryCoder.encodeIndex(dataPos, entrySize, entry.getMagic(), entry.getIndex(), entry.getTerm(), indexBuffer);
-            long indexPos = indexFileList.append(indexBuffer.array(), 0, indexBuffer.remaining(), false);
+        DLedgerEntryCoder.encodeIndex(dataPos, entrySize, entry.getMagic(), entry.getIndex(), entry.getTerm(), indexBuffer);
+        long indexPos = indexFileList.append(indexBuffer.array(), 0, indexBuffer.remaining(), false);
 //            PreConditions.check(indexPos == entry.getIndex() * INDEX_UNIT_SIZE, DLedgerResponseCode.DISK_ERROR, null);
-            ledgerEndTerm = memberState.currTerm();
-            ledgerEndIndex = entry.getIndex();
-            if (ledgerBeginIndex == -1) {
-                ledgerBeginIndex = ledgerEndIndex;
-            }
-            updateLedgerEndIndexAndTerm();
-            return entry;
+        ledgerEndTerm = memberState.currTerm();
+        ledgerEndIndex = entry.getIndex();
+        if (ledgerBeginIndex == -1) {
+            ledgerBeginIndex = ledgerEndIndex;
+        }
+        updateLedgerEndIndexAndTerm();
+        return entry;
 //        }
 
     }
@@ -599,10 +599,10 @@ public class DLedgerMmapFileStore extends DLedgerStore {
                 storeBaseRatio = DLedgerUtils.getDiskPartitionSpaceUsedPercent(dLedgerConfig.getStoreBaseDir());
                 dataRatio = DLedgerUtils.getDiskPartitionSpaceUsedPercent(dLedgerConfig.getDataStorePath());
                 long hourOfMs = 3600L * 1000L;
-                long fileReservedTimeMs = dLedgerConfig.getFileReservedHours() *  hourOfMs;
+                long fileReservedTimeMs = dLedgerConfig.getFileReservedHours() * hourOfMs;
                 if (fileReservedTimeMs < hourOfMs) {
                     logger.warn("The fileReservedTimeMs={} is smaller than hourOfMs={}", fileReservedTimeMs, hourOfMs);
-                    fileReservedTimeMs =  hourOfMs;
+                    fileReservedTimeMs = hourOfMs;
                 }
                 //If the disk is full, should prevent more data to get in
                 DLedgerMmapFileStore.this.isDiskFull = isNeedForbiddenWrite();
