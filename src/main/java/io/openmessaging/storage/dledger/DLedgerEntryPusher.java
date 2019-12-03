@@ -327,7 +327,7 @@ public class DLedgerEntryPusher {
         private String peerId;
         private long compareIndex = -1;
         private long writeIndex = -1;
-        private int maxPendingSize = 10000;
+        private int maxPendingSize = 1000;
         private long term = -1;
         private String leaderId = null;
         private long lastCheckLeakTimeMs = System.currentTimeMillis();
