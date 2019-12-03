@@ -346,9 +346,9 @@ public class DLedgerMmapFileStore extends DLedgerStore {
             long dataPos = dataFileList.append(dataBuffer.array(), 0, dataBuffer.remaining());
             PreConditions.check(dataPos != -1, DLedgerResponseCode.DISK_ERROR, null);
             PreConditions.check(dataPos == prePos, DLedgerResponseCode.DISK_ERROR, null);
-            DLedgerEntryCoder.encodeIndex(dataPos, entrySize, CURRENT_MAGIC, nextIndex, memberState.currTerm(), indexBuffer);
-            long indexPos = indexFileList.append(indexBuffer.array(), 0, indexBuffer.remaining(), false);
-            PreConditions.check(indexPos == entry.getIndex() * INDEX_UNIT_SIZE, DLedgerResponseCode.DISK_ERROR, null);
+//            DLedgerEntryCoder.encodeIndex(dataPos, entrySize, CURRENT_MAGIC, nextIndex, memberState.currTerm(), indexBuffer);
+//            long indexPos = indexFileList.append(indexBuffer.array(), 0, indexBuffer.remaining(), false);
+//            PreConditions.check(indexPos == entry.getIndex() * INDEX_UNIT_SIZE, DLedgerResponseCode.DISK_ERROR, null);
             if (logger.isDebugEnabled()) {
                 logger.info("[{}] Append as Leader {} {}", memberState.getSelfId(), entry.getIndex(), entry.getBody().length);
             }
