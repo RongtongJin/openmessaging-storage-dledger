@@ -71,16 +71,7 @@ public class DLedgerRpcNettyService extends DLedgerRpcService {
 
     private DLedgerServer dLedgerServer;
 
-    private ExecutorService futureExecutor = Executors.newFixedThreadPool(6, new ThreadFactory() {
-        private AtomicInteger threadIndex = new AtomicInteger(0);
-
-        @Override
-        public Thread newThread(Runnable r) {
-            return new Thread(r, "FutureExecutor_" + this.threadIndex.incrementAndGet());
-        }
-    });
-
-    private ExecutorService futureExecutor2 = Executors.newFixedThreadPool(6, new ThreadFactory() {
+    private ExecutorService futureExecutor = Executors.newFixedThreadPool(4, new ThreadFactory() {
         private AtomicInteger threadIndex = new AtomicInteger(0);
 
         @Override
@@ -106,14 +97,14 @@ public class DLedgerRpcNettyService extends DLedgerRpcService {
         NettyServerConfig nettyServerConfig = new NettyServerConfig();
         nettyServerConfig.setListenPort(Integer.valueOf(memberState.getSelfAddr().split(":")[1]));
         this.remotingServer = new NettyRemotingServer(nettyServerConfig, null);
-        this.remotingServer.registerProcessor(DLedgerRequestCode.METADATA.getCode(), protocolProcessor, futureExecutor2);
-        this.remotingServer.registerProcessor(DLedgerRequestCode.APPEND.getCode(), protocolProcessor, futureExecutor2);
-        this.remotingServer.registerProcessor(DLedgerRequestCode.GET.getCode(), protocolProcessor, futureExecutor2);
-        this.remotingServer.registerProcessor(DLedgerRequestCode.PULL.getCode(), protocolProcessor, futureExecutor2);
-        this.remotingServer.registerProcessor(DLedgerRequestCode.PUSH.getCode(), protocolProcessor, futureExecutor2);
-        this.remotingServer.registerProcessor(DLedgerRequestCode.VOTE.getCode(), protocolProcessor, futureExecutor2);
-        this.remotingServer.registerProcessor(DLedgerRequestCode.HEART_BEAT.getCode(), protocolProcessor, futureExecutor2);
-        this.remotingServer.registerProcessor(DLedgerRequestCode.LEADERSHIP_TRANSFER.getCode(), protocolProcessor, futureExecutor2);
+        this.remotingServer.registerProcessor(DLedgerRequestCode.METADATA.getCode(), protocolProcessor, null);
+        this.remotingServer.registerProcessor(DLedgerRequestCode.APPEND.getCode(), protocolProcessor, null);
+        this.remotingServer.registerProcessor(DLedgerRequestCode.GET.getCode(), protocolProcessor, null);
+        this.remotingServer.registerProcessor(DLedgerRequestCode.PULL.getCode(), protocolProcessor, null);
+        this.remotingServer.registerProcessor(DLedgerRequestCode.PUSH.getCode(), protocolProcessor, null);
+        this.remotingServer.registerProcessor(DLedgerRequestCode.VOTE.getCode(), protocolProcessor, null);
+        this.remotingServer.registerProcessor(DLedgerRequestCode.HEART_BEAT.getCode(), protocolProcessor, null);
+        this.remotingServer.registerProcessor(DLedgerRequestCode.LEADERSHIP_TRANSFER.getCode(), protocolProcessor, null);
 
         //start the remoting client
         this.remotingClient = new NettyRemotingClient(new NettyClientConfig(), null);
