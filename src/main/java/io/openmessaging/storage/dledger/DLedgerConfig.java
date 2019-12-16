@@ -86,11 +86,15 @@ public class DLedgerConfig {
     private int minTakeLeadershipVoteIntervalMs =  30;
     private int maxTakeLeadershipVoteIntervalMs =  100;
 
-    private boolean enableBatchPush = true;
+    private boolean enableBatchPush = false;
 
     private int batchPushMinNums = 20;
 
     private int batchPushMaxElapsedTime = 150;
+
+    private int entryInitialCapacity = 5000;
+
+    private int entryCacheMaxSize = 5000;
 
 
     public String getDefaultPath() {
@@ -399,5 +403,21 @@ public class DLedgerConfig {
 
     public void setBatchPushMaxElapsedTime(int batchPushMaxElapsedTime) {
         this.batchPushMaxElapsedTime = batchPushMaxElapsedTime;
+    }
+
+    public int getEntryInitialCapacity() {
+        return entryInitialCapacity;
+    }
+
+    public void setEntryInitialCapacity(int entryInitialCapacity) {
+        this.entryInitialCapacity = entryInitialCapacity;
+    }
+
+    public int getEntryCacheMaxSize() {
+        return entryCacheMaxSize;
+    }
+
+    public void setEntryCacheMaxSize(int entryCacheMaxSize) {
+        this.entryCacheMaxSize = entryCacheMaxSize;
     }
 }

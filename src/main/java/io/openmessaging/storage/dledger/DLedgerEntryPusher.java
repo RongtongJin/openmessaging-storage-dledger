@@ -18,6 +18,8 @@
 package io.openmessaging.storage.dledger;
 
 import com.alibaba.fastjson.JSON;
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
 import io.openmessaging.storage.dledger.entry.DLedgerEntry;
 import io.openmessaging.storage.dledger.protocol.AppendEntryResponse;
 import io.openmessaging.storage.dledger.protocol.DLedgerResponseCode;
@@ -61,6 +63,9 @@ public class DLedgerEntryPusher {
     private QuorumAckChecker quorumAckChecker = new QuorumAckChecker(logger);
 
     private Map<String, EntryDispatcher> dispatcherMap = new HashMap<>();
+
+    private Cache<Long, DLedgerEntry> entryCache =
+        Caffeine.newBuilder().initialCapacity(dLedgerConfig.getEntryInitialCapacity()).maximumSize(dLedgerConfig.getEntryCacheMaxSize()).build();
 
     public DLedgerEntryPusher(DLedgerConfig dLedgerConfig, MemberState memberState, DLedgerStore dLedgerStore,
         DLedgerRpcService dLedgerRpcService) {
@@ -152,6 +157,7 @@ public class DLedgerEntryPusher {
             if (old != null) {
                 logger.warn("[MONITOR] get old wait at index={}", entry.getIndex());
             }
+            entryCache.put(entry.getIndex(), entry);
            // wakeUpDispatchers();
             return future;
         }
@@ -161,6 +167,10 @@ public class DLedgerEntryPusher {
         for (EntryDispatcher dispatcher : dispatcherMap.values()) {
             dispatcher.wakeup();
         }
+    }
+
+    private DLedgerEntry getDLedgerEntry(long index) {
+        return entryCache.get(index, i -> dLedgerStore.get(i));
     }
 
     /**
@@ -327,7 +337,7 @@ public class DLedgerEntryPusher {
         private String peerId;
         private long compareIndex = -1;
         private long writeIndex = -1;
-        private int maxPendingSize = 1000;
+        private int maxPendingSize = 2000;
         private long term = -1;
         private String leaderId = null;
         private long lastCheckLeakTimeMs = System.currentTimeMillis();
@@ -396,7 +406,7 @@ public class DLedgerEntryPusher {
         }
 
         private void doAppendInner(long index) throws Exception {
-            DLedgerEntry entry = dLedgerStore.get(index);
+            DLedgerEntry entry = getDLedgerEntry(index);
             PreConditions.check(entry != null, DLedgerResponseCode.UNKNOWN, "writeIndex=%d", index);
             checkQuotaAndWait(entry);
             PushEntryRequest request = buildPushRequest(entry, PushEntryRequest.Type.APPEND);
@@ -459,7 +469,7 @@ public class DLedgerEntryPusher {
         }
 
         private void doBatchAppendInner(long index) throws Exception {
-            DLedgerEntry entry = dLedgerStore.get(index);
+            DLedgerEntry entry = getDLedgerEntry(index);
             PreConditions.check(entry != null, DLedgerResponseCode.UNKNOWN, "writeIndex=%d", index);
             //System.out.println(dLedgerConfig.getSelfId() + " add entry" + index);
             batchPushEntryRequest.addEntry(entry);
@@ -546,7 +556,7 @@ public class DLedgerEntryPusher {
 
         private void doTruncate(long truncateIndex) throws Exception {
             PreConditions.check(type.get() == PushEntryRequest.Type.TRUNCATE, DLedgerResponseCode.UNKNOWN);
-            DLedgerEntry truncateEntry = dLedgerStore.get(truncateIndex);
+            DLedgerEntry truncateEntry = getDLedgerEntry(truncateIndex);
             PreConditions.check(truncateEntry != null, DLedgerResponseCode.UNKNOWN);
             logger.info("[Push-{}]Will push data to truncate truncateIndex={} pos={}", peerId, truncateIndex, truncateEntry.getPos());
             PushEntryRequest truncateRequest = buildPushRequest(truncateEntry, PushEntryRequest.Type.TRUNCATE);
@@ -613,7 +623,7 @@ public class DLedgerEntryPusher {
                     compareIndex = dLedgerStore.getLedgerEndIndex();
                 }
 
-                DLedgerEntry entry = dLedgerStore.get(compareIndex);
+                DLedgerEntry entry = getDLedgerEntry(compareIndex);
                 PreConditions.check(entry != null, DLedgerResponseCode.INTERNAL_ERROR, "compareIndex=%d", compareIndex);
                 PushEntryRequest request = buildPushRequest(entry, PushEntryRequest.Type.COMPARE);
                 CompletableFuture<PushEntryResponse> responseFuture = dLedgerRpcService.push(request);
