@@ -85,6 +85,7 @@ public class DLedgerEntryPusher {
     public void startup() {
         entryHandler.start();
         quorumAckChecker.start();
+        clearCache.start();
         for (EntryDispatcher dispatcher : dispatcherMap.values()) {
             dispatcher.start();
         }
@@ -93,6 +94,7 @@ public class DLedgerEntryPusher {
     public void shutdown() {
         entryHandler.shutdown();
         quorumAckChecker.shutdown();
+        clearCache.shutdown();
         for (EntryDispatcher dispatcher : dispatcherMap.values()) {
             dispatcher.shutdown();
         }
@@ -159,7 +161,7 @@ public class DLedgerEntryPusher {
             if (old != null) {
                 logger.warn("[MONITOR] get old wait at index={}", entry.getIndex());
             }
-//            entryCache.put(entry.getIndex(), entry);
+            entryCache.put(entry.getIndex(), entry);
             // wakeUpDispatchers();
             return future;
         }
