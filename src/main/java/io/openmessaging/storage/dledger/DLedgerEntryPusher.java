@@ -173,6 +173,10 @@ public class DLedgerEntryPusher {
         return entryCache.get(index, i -> dLedgerStore.get(i));
     }
 
+    private void invalidateEntryCache() {
+        entryCache.invalidateAll();
+    }
+
     /**
      * This thread will check the quorum index and complete the pending requests.
      */
@@ -359,6 +363,7 @@ public class DLedgerEntryPusher {
                     if (!memberState.isLeader()) {
                         return false;
                     }
+                    invalidateEntryCache();
                     PreConditions.check(memberState.getSelfId().equals(memberState.getLeaderId()), DLedgerResponseCode.UNKNOWN);
                     term = memberState.currTerm();
                     leaderId = memberState.getSelfId();
