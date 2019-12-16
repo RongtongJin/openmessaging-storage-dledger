@@ -96,7 +96,6 @@ public class DLedgerConfig {
 
     private int entryCacheMaxSize = 5000;
 
-
     public String getDefaultPath() {
         return storeBaseDir + File.separator + "dledger-" + selfId;
     }

@@ -20,6 +20,7 @@ package io.openmessaging.storage.dledger;
 import com.alibaba.fastjson.JSON;
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
+import com.sun.istack.internal.NotNull;
 import io.openmessaging.storage.dledger.entry.DLedgerEntry;
 import io.openmessaging.storage.dledger.protocol.AppendEntryResponse;
 import io.openmessaging.storage.dledger.protocol.DLedgerResponseCode;
@@ -65,7 +66,7 @@ public class DLedgerEntryPusher {
     private Map<String, EntryDispatcher> dispatcherMap = new HashMap<>();
 
     private Cache<Long, DLedgerEntry> entryCache =
-        Caffeine.newBuilder().initialCapacity(dLedgerConfig.getEntryInitialCapacity()).maximumSize(dLedgerConfig.getEntryCacheMaxSize()).build();
+        Caffeine.newBuilder().initialCapacity(5000).maximumSize(5000).build();
 
     public DLedgerEntryPusher(DLedgerConfig dLedgerConfig, MemberState memberState, DLedgerStore dLedgerStore,
         DLedgerRpcService dLedgerRpcService) {
