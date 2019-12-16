@@ -18,8 +18,6 @@
 package io.openmessaging.storage.dledger;
 
 import com.alibaba.fastjson.JSON;
-import com.github.benmanes.caffeine.cache.Cache;
-import com.github.benmanes.caffeine.cache.Caffeine;
 import io.openmessaging.storage.dledger.entry.DLedgerEntry;
 import io.openmessaging.storage.dledger.protocol.AppendEntryResponse;
 import io.openmessaging.storage.dledger.protocol.DLedgerResponseCode;
@@ -64,8 +62,8 @@ public class DLedgerEntryPusher {
 
     private Map<String, EntryDispatcher> dispatcherMap = new HashMap<>();
 
-    private Cache<Long, DLedgerEntry> entryCache =
-        Caffeine.newBuilder().initialCapacity(2000).maximumSize(2000).build();
+//    private Cache<Long, DLedgerEntry> entryCache =
+//        Caffeine.newBuilder().initialCapacity(2000).maximumSize(2000).build();
 
     public DLedgerEntryPusher(DLedgerConfig dLedgerConfig, MemberState memberState, DLedgerStore dLedgerStore,
         DLedgerRpcService dLedgerRpcService) {
@@ -157,8 +155,8 @@ public class DLedgerEntryPusher {
             if (old != null) {
                 logger.warn("[MONITOR] get old wait at index={}", entry.getIndex());
             }
-            entryCache.put(entry.getIndex(), entry);
-           // wakeUpDispatchers();
+//            entryCache.put(entry.getIndex(), entry);
+            // wakeUpDispatchers();
             return future;
         }
     }
@@ -169,13 +167,13 @@ public class DLedgerEntryPusher {
         }
     }
 
-    private DLedgerEntry getDLedgerEntry(long index) {
-        return entryCache.get(index, i -> dLedgerStore.get(i));
-    }
-
-    private void invalidateEntryCache() {
-        entryCache.invalidateAll();
-    }
+//    private DLedgerEntry getDLedgerEntry(long index) {
+//        return entryCache.get(index, i -> dLedgerStore.get(i));
+//    }
+//
+//    private void invalidateEntryCache() {
+//        entryCache.invalidateAll();
+//    }
 
     /**
      * This thread will check the quorum index and complete the pending requests.
@@ -317,22 +315,17 @@ public class DLedgerEntryPusher {
     }
 
     /**
-     * This thread will be activated by the leader.
-     * This thread will push the entry to follower(identified by peerId) and update the completed pushed index to index map.
-     * Should generate a single thread for each peer.
-     * The push has 4 types:
-     *   APPEND : append the entries to the follower
-     *   COMPARE : if the leader changes, the new leader should compare its entries to follower's
-     *   TRUNCATE : if the leader finished comparing by an index, the leader will send a request to truncate the follower's ledger
-     *   COMMIT: usually, the leader will attach the committed index with the APPEND request, but if the append requests are few and scattered,
-     *           the leader will send a pure request to inform the follower of committed index.
+     * This thread will be activated by the leader. This thread will push the entry to follower(identified by peerId)
+     * and update the completed pushed index to index map. Should generate a single thread for each peer. The push has 4
+     * types: APPEND : append the entries to the follower COMPARE : if the leader changes, the new leader should compare
+     * its entries to follower's TRUNCATE : if the leader finished comparing by an index, the leader will send a request
+     * to truncate the follower's ledger COMMIT: usually, the leader will attach the committed index with the APPEND
+     * request, but if the append requests are few and scattered, the leader will send a pure request to inform the
+     * follower of committed index.
      *
-     *   The common transferring between these types are as following:
+     * The common transferring between these types are as following:
      *
-     *   COMPARE ---- TRUNCATE ---- APPEND ---- COMMIT
-     *   ^                             |
-     *   |---<-----<------<-------<----|
-     *
+     * COMPARE ---- TRUNCATE ---- APPEND ---- COMMIT ^                             | |---<-----<------<-------<----|
      */
     private class EntryDispatcher extends ShutdownAbleThread {
 
@@ -363,7 +356,7 @@ public class DLedgerEntryPusher {
                     if (!memberState.isLeader()) {
                         return false;
                     }
-                    invalidateEntryCache();
+                    //invalidateEntryCache();
                     PreConditions.check(memberState.getSelfId().equals(memberState.getLeaderId()), DLedgerResponseCode.UNKNOWN);
                     term = memberState.currTerm();
                     leaderId = memberState.getSelfId();
@@ -411,7 +404,8 @@ public class DLedgerEntryPusher {
         }
 
         private void doAppendInner(long index) throws Exception {
-            DLedgerEntry entry = getDLedgerEntry(index);
+            //DLedgerEntry entry = getDLedgerEntry(index);
+            DLedgerEntry entry = dLedgerStore.get(index);
             PreConditions.check(entry != null, DLedgerResponseCode.UNKNOWN, "writeIndex=%d", index);
             checkQuotaAndWait(entry);
             PushEntryRequest request = buildPushRequest(entry, PushEntryRequest.Type.APPEND);
@@ -474,7 +468,8 @@ public class DLedgerEntryPusher {
         }
 
         private void doBatchAppendInner(long index) throws Exception {
-            DLedgerEntry entry = getDLedgerEntry(index);
+            //DLedgerEntry entry = getDLedgerEntry(index);
+            DLedgerEntry entry = dLedgerStore.get(index);
             PreConditions.check(entry != null, DLedgerResponseCode.UNKNOWN, "writeIndex=%d", index);
             //System.out.println(dLedgerConfig.getSelfId() + " add entry" + index);
             batchPushEntryRequest.addEntry(entry);
@@ -561,7 +556,8 @@ public class DLedgerEntryPusher {
 
         private void doTruncate(long truncateIndex) throws Exception {
             PreConditions.check(type.get() == PushEntryRequest.Type.TRUNCATE, DLedgerResponseCode.UNKNOWN);
-            DLedgerEntry truncateEntry = getDLedgerEntry(truncateIndex);
+            //DLedgerEntry truncateEntry = getDLedgerEntry(truncateIndex);
+            DLedgerEntry truncateEntry = dLedgerStore.get(truncateIndex);
             PreConditions.check(truncateEntry != null, DLedgerResponseCode.UNKNOWN);
             logger.info("[Push-{}]Will push data to truncate truncateIndex={} pos={}", peerId, truncateIndex, truncateEntry.getPos());
             PushEntryRequest truncateRequest = buildPushRequest(truncateEntry, PushEntryRequest.Type.TRUNCATE);
@@ -628,7 +624,8 @@ public class DLedgerEntryPusher {
                     compareIndex = dLedgerStore.getLedgerEndIndex();
                 }
 
-                DLedgerEntry entry = getDLedgerEntry(compareIndex);
+                //DLedgerEntry entry = getDLedgerEntry(compareIndex);
+                DLedgerEntry entry = dLedgerStore.get(compareIndex);
                 PreConditions.check(entry != null, DLedgerResponseCode.INTERNAL_ERROR, "compareIndex=%d", compareIndex);
                 PushEntryRequest request = buildPushRequest(entry, PushEntryRequest.Type.COMPARE);
                 CompletableFuture<PushEntryResponse> responseFuture = dLedgerRpcService.push(request);
@@ -718,9 +715,8 @@ public class DLedgerEntryPusher {
     }
 
     /**
-     * This thread will be activated by the follower.
-     * Accept the push request and order it by the index, then append to ledger store one by one.
-     *
+     * This thread will be activated by the follower. Accept the push request and order it by the index, then append to
+     * ledger store one by one.
      */
     private class EntryHandler extends ShutdownAbleThread {
 
@@ -869,16 +865,19 @@ public class DLedgerEntryPusher {
         }
 
         /**
-         * The leader does push entries to follower, and record the pushed index. But in the following conditions, the push may get stopped.
-         *   * If the follower is abnormally shutdown, its ledger end index may be smaller than before. At this time, the leader may push fast-forward entries, and retry all the time.
-         *   * If the last ack is missed, and no new message is coming in.The leader may retry push the last message, but the follower will ignore it.
+         * The leader does push entries to follower, and record the pushed index. But in the following conditions, the
+         * push may get stopped. * If the follower is abnormally shutdown, its ledger end index may be smaller than
+         * before. At this time, the leader may push fast-forward entries, and retry all the time. * If the last ack is
+         * missed, and no new message is coming in.The leader may retry push the last message, but the follower will
+         * ignore it.
+         *
          * @param endIndex
          */
         private void checkAbnormalFuture(long endIndex) {
             if (DLedgerUtils.elapsed(lastCheckFastForwardTimeMs) < 1000) {
                 return;
             }
-            lastCheckFastForwardTimeMs  = System.currentTimeMillis();
+            lastCheckFastForwardTimeMs = System.currentTimeMillis();
             if (writeRequestMap.isEmpty()) {
                 return;
             }
@@ -900,12 +899,12 @@ public class DLedgerEntryPusher {
                     continue;
                 }
                 //Just OK
-                if (index ==  endIndex + 1) {
+                if (index == endIndex + 1) {
                     //The next entry is coming, just return
                     return;
                 }
                 //Fast forward
-                TimeoutFuture<PushEntryResponse> future  = (TimeoutFuture<PushEntryResponse>) pair.getValue();
+                TimeoutFuture<PushEntryResponse> future = (TimeoutFuture<PushEntryResponse>) pair.getValue();
                 if (!future.isTimeOut()) {
                     continue;
                 }
