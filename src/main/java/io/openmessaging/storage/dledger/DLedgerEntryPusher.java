@@ -65,7 +65,7 @@ public class DLedgerEntryPusher {
     private Map<String, EntryDispatcher> dispatcherMap = new HashMap<>();
 
     private Cache<Long, DLedgerEntry> entryCache =
-        Caffeine.newBuilder().initialCapacity(5000).maximumSize(5000).build();
+        Caffeine.newBuilder().initialCapacity(2000).maximumSize(2000).build();
 
     public DLedgerEntryPusher(DLedgerConfig dLedgerConfig, MemberState memberState, DLedgerStore dLedgerStore,
         DLedgerRpcService dLedgerRpcService) {
