@@ -86,6 +86,12 @@ public class DLedgerConfig {
     private int minTakeLeadershipVoteIntervalMs =  30;
     private int maxTakeLeadershipVoteIntervalMs =  100;
 
+    private boolean enableBatchPush = true;
+
+    private int batchPushMinNums = 20;
+
+    private int batchPushMaxElapsedTime = 150;
+
 
     public String getDefaultPath() {
         return storeBaseDir + File.separator + "dledger-" + selfId;
@@ -369,5 +375,29 @@ public class DLedgerConfig {
 
     public void setMaxTakeLeadershipVoteIntervalMs(int maxTakeLeadershipVoteIntervalMs) {
         this.maxTakeLeadershipVoteIntervalMs = maxTakeLeadershipVoteIntervalMs;
+    }
+
+    public boolean isEnableBatchPush() {
+        return enableBatchPush;
+    }
+
+    public void setEnableBatchPush(boolean enableBatchPush) {
+        this.enableBatchPush = enableBatchPush;
+    }
+
+    public int getBatchPushMinNums() {
+        return batchPushMinNums;
+    }
+
+    public void setBatchPushMinNums(int batchPushMinNums) {
+        this.batchPushMinNums = batchPushMinNums;
+    }
+
+    public int getBatchPushMaxElapsedTime() {
+        return batchPushMaxElapsedTime;
+    }
+
+    public void setBatchPushMaxElapsedTime(int batchPushMaxElapsedTime) {
+        this.batchPushMaxElapsedTime = batchPushMaxElapsedTime;
     }
 }

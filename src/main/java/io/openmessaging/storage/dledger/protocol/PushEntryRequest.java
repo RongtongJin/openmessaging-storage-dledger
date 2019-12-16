@@ -18,11 +18,15 @@
 package io.openmessaging.storage.dledger.protocol;
 
 import io.openmessaging.storage.dledger.entry.DLedgerEntry;
+import java.util.ArrayList;
+import java.util.List;
 
 public class PushEntryRequest extends RequestOrResponse {
     private long commitIndex = -1;
     private Type type = Type.APPEND;
     private DLedgerEntry entry;
+
+    private List<DLedgerEntry> entries = new ArrayList<>();
 
     public DLedgerEntry getEntry() {
         return entry;
@@ -48,10 +52,19 @@ public class PushEntryRequest extends RequestOrResponse {
         this.commitIndex = commitIndex;
     }
 
+    public void addEntry(DLedgerEntry entry) {
+        entries.add(entry);
+    }
+
+    public List<DLedgerEntry> getEntries() {
+        return entries;
+    }
+
     public enum Type {
         APPEND,
         COMMIT,
         COMPARE,
-        TRUNCATE;
+        TRUNCATE,
+        BATCH_APPEND
     }
 }

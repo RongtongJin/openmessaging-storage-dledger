@@ -332,6 +332,7 @@ public class DLedgerEntryPusher {
         private String leaderId = null;
         private long lastCheckLeakTimeMs = System.currentTimeMillis();
         private ConcurrentMap<Long, Long> pendingMap = new ConcurrentHashMap<>();
+        private PushEntryRequest batchPushEntryRequest = new PushEntryRequest();
         private Quota quota = new Quota(dLedgerConfig.getPeerPushQuota());
 
         public EntryDispatcher(String peerId, Logger logger) {
@@ -369,6 +370,14 @@ public class DLedgerEntryPusher {
             return request;
         }
 
+        private void resetBatchPushEntryRequest() {
+            batchPushEntryRequest.setGroup(memberState.getGroup());
+            batchPushEntryRequest.setRemoteId(peerId);
+            batchPushEntryRequest.setLeaderId(leaderId);
+            batchPushEntryRequest.setTerm(term);
+            batchPushEntryRequest.setType(PushEntryRequest.Type.BATCH_APPEND);
+        }
+
         private void checkQuotaAndWait(DLedgerEntry entry) {
             if (dLedgerStore.getLedgerEndIndex() - entry.getIndex() <= maxPendingSize) {
                 return;
@@ -385,6 +394,7 @@ public class DLedgerEntryPusher {
                 DLedgerUtils.sleep(quota.leftNow());
             }
         }
+
         private void doAppendInner(long index) throws Exception {
             DLedgerEntry entry = dLedgerStore.get(index);
             PreConditions.check(entry != null, DLedgerResponseCode.UNKNOWN, "writeIndex=%d", index);
@@ -415,6 +425,48 @@ public class DLedgerEntryPusher {
                 }
             });
             lastPushCommitTimeMs = System.currentTimeMillis();
+        }
+
+        private void sendBatchPushEntryRequest() throws Exception {
+            //System.out.println(dLedgerConfig.getSelfId() + " send batchPushEntryRequest");
+            batchPushEntryRequest.setCommitIndex(dLedgerStore.getCommittedIndex());
+            CompletableFuture<PushEntryResponse> responseFuture = dLedgerRpcService.push(batchPushEntryRequest);
+            pendingMap.put(batchPushEntryRequest.getEntries().get(batchPushEntryRequest.getEntries().size() - 1).getIndex(), System.currentTimeMillis());
+            responseFuture.whenComplete((x, ex) -> {
+                try {
+                    PreConditions.check(ex == null, DLedgerResponseCode.UNKNOWN);
+                    DLedgerResponseCode responseCode = DLedgerResponseCode.valueOf(x.getCode());
+                    switch (responseCode) {
+                        case SUCCESS:
+                            pendingMap.remove(x.getIndex());
+                            updatePeerWaterMark(x.getTerm(), peerId, x.getIndex());
+                            quorumAckChecker.wakeup();
+                            break;
+                        case INCONSISTENT_STATE:
+                            logger.info("[Push-{}]Get INCONSISTENT_STATE when push index={} term={}", peerId, x.getIndex(), x.getTerm());
+                            changeState(-1, PushEntryRequest.Type.COMPARE);
+                            break;
+                        default:
+                            logger.warn("[Push-{}]Get error response code {} {}", peerId, responseCode, x.baseInfo());
+                            break;
+                    }
+                } catch (Throwable t) {
+                    logger.error("", t);
+                }
+            });
+            lastPushCommitTimeMs = System.currentTimeMillis();
+            batchPushEntryRequest.getEntries().clear();
+        }
+
+        private void doBatchAppendInner(long index) throws Exception {
+            DLedgerEntry entry = dLedgerStore.get(index);
+            PreConditions.check(entry != null, DLedgerResponseCode.UNKNOWN, "writeIndex=%d", index);
+            //System.out.println(dLedgerConfig.getSelfId() + " add entry" + index);
+            batchPushEntryRequest.addEntry(entry);
+            if (batchPushEntryRequest.getEntries().size() >= dLedgerConfig.getBatchPushMinNums()
+                || DLedgerUtils.elapsed(lastPushCommitTimeMs) >= dLedgerConfig.getBatchPushMaxElapsedTime()) {
+                sendBatchPushEntryRequest();
+            }
         }
 
         private void doCommit() throws Exception {
@@ -466,6 +518,32 @@ public class DLedgerEntryPusher {
             }
         }
 
+        private void doBatchAppend() throws Exception {
+            //throw new UnsupportedOperationException("unsupported batch append");
+            while (true) {
+                //System.out.println("writeIndex: " + writeIndex + ",endIndex: " + dLedgerStore.getLedgerEndIndex());
+                if (!checkAndFreshState()) {
+                    break;
+                }
+                if (batchPushEntryRequest.getEntries().size() > 0 && DLedgerUtils.elapsed(lastPushCommitTimeMs) > dLedgerConfig.getBatchPushMaxElapsedTime()) {
+                    sendBatchPushEntryRequest();
+                }
+                if (type.get() != PushEntryRequest.Type.BATCH_APPEND) {
+                    break;
+                }
+                if (writeIndex > dLedgerStore.getLedgerEndIndex()) {
+                    doCommit();
+                    break;
+                }
+                if (pendingMap.size() >= maxPendingSize) {
+                    break;
+                }
+                //System.out.println(dLedgerConfig.getSelfId() + " doBatchAppendInner " + writeIndex);
+                doBatchAppendInner(writeIndex);
+                writeIndex++;
+            }
+        }
+
         private void doTruncate(long truncateIndex) throws Exception {
             PreConditions.check(type.get() == PushEntryRequest.Type.TRUNCATE, DLedgerResponseCode.UNKNOWN);
             DLedgerEntry truncateEntry = dLedgerStore.get(truncateIndex);
@@ -476,7 +554,11 @@ public class DLedgerEntryPusher {
             PreConditions.check(truncateResponse != null, DLedgerResponseCode.UNKNOWN, "truncateIndex=%d", truncateIndex);
             PreConditions.check(truncateResponse.getCode() == DLedgerResponseCode.SUCCESS.getCode(), DLedgerResponseCode.valueOf(truncateResponse.getCode()), "truncateIndex=%d", truncateIndex);
             lastPushCommitTimeMs = System.currentTimeMillis();
-            changeState(truncateIndex, PushEntryRequest.Type.APPEND);
+            if (dLedgerConfig.isEnableBatchPush()) {
+                changeState(truncateIndex, PushEntryRequest.Type.BATCH_APPEND);
+            } else {
+                changeState(truncateIndex, PushEntryRequest.Type.APPEND);
+            }
         }
 
         private synchronized void changeState(long index, PushEntryRequest.Type target) {
@@ -496,6 +578,13 @@ public class DLedgerEntryPusher {
                     break;
                 case TRUNCATE:
                     compareIndex = -1;
+                    break;
+                case BATCH_APPEND:
+                    compareIndex = -1;
+                    updatePeerWaterMark(term, peerId, index);
+                    quorumAckChecker.wakeup();
+                    writeIndex = index + 1;
+                    resetBatchPushEntryRequest();
                     break;
                 default:
                     break;
@@ -600,6 +689,8 @@ public class DLedgerEntryPusher {
 
                 if (type.get() == PushEntryRequest.Type.APPEND) {
                     doAppend();
+                } else if (type.get() == PushEntryRequest.Type.BATCH_APPEND) {
+                    doBatchAppend();
                 } else {
                     doCompare();
                 }
@@ -628,12 +719,14 @@ public class DLedgerEntryPusher {
         }
 
         public CompletableFuture<PushEntryResponse> handlePush(PushEntryRequest request) throws Exception {
+            //System.out.println("handle Push "+request.getType().name());
             //The timeout should smaller than the remoting layer's request timeout
             CompletableFuture<PushEntryResponse> future = new TimeoutFuture<>(1000);
             switch (request.getType()) {
                 case APPEND:
                     PreConditions.check(request.getEntry() != null, DLedgerResponseCode.UNEXPECTED_ARGUMENT);
                     long index = request.getEntry().getIndex();
+                    //System.out.println(dLedgerConfig.getSelfId() + " put Index " + index);
                     Pair<PushEntryRequest, CompletableFuture<PushEntryResponse>> old = writeRequestMap.putIfAbsent(index, new Pair<>(request, future));
                     if (old != null) {
                         logger.warn("[MONITOR]The index {} has already existed with {} and curr is {}", index, old.getKey().baseInfo(), request.baseInfo());
@@ -648,6 +741,12 @@ public class DLedgerEntryPusher {
                     PreConditions.check(request.getEntry() != null, DLedgerResponseCode.UNEXPECTED_ARGUMENT);
                     writeRequestMap.clear();
                     compareOrTruncateRequests.put(new Pair<>(request, future));
+                    break;
+                case BATCH_APPEND:
+                    PreConditions.check(request.getEntries() != null, DLedgerResponseCode.UNEXPECTED_ARGUMENT);
+                    long firstIndex = request.getEntries().get(0).getIndex();
+                    //System.out.println(dLedgerConfig.getSelfId() + " put firstIndex " + firstIndex);
+                    writeRequestMap.put(firstIndex, new Pair<>(request, future));
                     break;
                 default:
                     logger.error("[BUG]Unknown type {} from {}", request.getType(), request.baseInfo());
@@ -670,6 +769,17 @@ public class DLedgerEntryPusher {
             return response;
         }
 
+        private PushEntryResponse buildBatchPushResponse(PushEntryRequest request, int code) {
+            PushEntryResponse response = new PushEntryResponse();
+            response.setGroup(request.getGroup());
+            response.setCode(code);
+            response.setTerm(request.getTerm());
+            response.setIndex(request.getEntries().get(request.getEntries().size() - 1).getIndex());
+            response.setBeginIndex(dLedgerStore.getLedgerBeginIndex());
+            response.setEndIndex(dLedgerStore.getLedgerEndIndex());
+            return response;
+        }
+
         private void handleDoAppend(long writeIndex, PushEntryRequest request,
             CompletableFuture<PushEntryResponse> future) {
             try {
@@ -682,6 +792,19 @@ public class DLedgerEntryPusher {
                 logger.error("[HandleDoWrite] writeIndex={}", writeIndex, t);
                 future.complete(buildResponse(request, DLedgerResponseCode.INCONSISTENT_STATE.getCode()));
             }
+        }
+
+        private void handleDoBatchAppend(PushEntryRequest request, CompletableFuture<PushEntryResponse> future) {
+            try {
+                for (DLedgerEntry entry : request.getEntries()) {
+                    dLedgerStore.appendAsFollower(entry, request.getTerm(), request.getLeaderId());
+                }
+                future.complete(buildBatchPushResponse(request, DLedgerResponseCode.SUCCESS.getCode()));
+                dLedgerStore.updateCommittedIndex(request.getTerm(), request.getCommitIndex());
+            } catch (Throwable t) {
+                logger.error("[HandleDoBatchAppend]", t);
+            }
+
         }
 
         private CompletableFuture<PushEntryResponse> handleDoCompare(long compareIndex, PushEntryRequest request,
@@ -811,6 +934,7 @@ public class DLedgerEntryPusher {
                     }
                 } else {
                     long nextIndex = dLedgerStore.getLedgerEndIndex() + 1;
+                    //System.out.println(dLedgerConfig.getSelfId() + " get nextIndex " + nextIndex);
                     Pair<PushEntryRequest, CompletableFuture<PushEntryResponse>> pair = writeRequestMap.remove(nextIndex);
                     if (pair == null) {
                         checkAbnormalFuture(dLedgerStore.getLedgerEndIndex());
@@ -818,7 +942,14 @@ public class DLedgerEntryPusher {
                         return;
                     }
                     PushEntryRequest request = pair.getKey();
-                    handleDoAppend(nextIndex, request, pair.getValue());
+                    switch (request.getType()) {
+                        case APPEND:
+                            handleDoAppend(nextIndex, request, pair.getValue());
+                            break;
+                        case BATCH_APPEND:
+                            handleDoBatchAppend(request, pair.getValue());
+                            break;
+                    }
                 }
             } catch (Throwable t) {
                 DLedgerEntryPusher.logger.error("Error in {}", getName(), t);
