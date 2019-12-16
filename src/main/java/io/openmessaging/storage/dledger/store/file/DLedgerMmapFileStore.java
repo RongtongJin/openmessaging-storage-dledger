@@ -566,8 +566,8 @@ public class DLedgerMmapFileStore extends DLedgerStore {
         @Override public void doWork() {
             try {
                 long start = System.currentTimeMillis();
-                DLedgerMmapFileStore.this.dataFileList.flush(0);
-                DLedgerMmapFileStore.this.indexFileList.flush(0);
+                DLedgerMmapFileStore.this.dataFileList.flush(4);
+                DLedgerMmapFileStore.this.indexFileList.flush(4);
                 if (DLedgerUtils.elapsed(start) > 500) {
                     logger.info("Flush data cost={} ms", DLedgerUtils.elapsed(start));
                 }
