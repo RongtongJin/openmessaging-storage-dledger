@@ -326,8 +326,9 @@ public class DLedgerMmapFileStore extends DLedgerStore {
         PreConditions.check(!isDiskFull, DLedgerResponseCode.DISK_FULL);
         ByteBuffer dataBuffer = localEntryBuffer.get();
         ByteBuffer indexBuffer = localIndexBuffer.get();
-        DLedgerEntryCoder.encode(entry, dataBuffer);
-        int entrySize = dataBuffer.remaining();
+        //DLedgerEntryCoder.encode(entry, dataBuffer);
+        //int entrySize = dataBuffer.remaining();
+        int entrySize = entry.computSizeInBytes();
         synchronized (memberState) {
             PreConditions.check(memberState.isLeader(), DLedgerResponseCode.NOT_LEADER, null);
             PreConditions.check(memberState.getTransferee() == null, DLedgerResponseCode.LEADER_TRANSFERRING, null);
@@ -335,11 +336,13 @@ public class DLedgerMmapFileStore extends DLedgerStore {
             entry.setIndex(nextIndex);
             entry.setTerm(memberState.currTerm());
             entry.setMagic(CURRENT_MAGIC);
-            DLedgerEntryCoder.setIndexTerm(dataBuffer, nextIndex, memberState.currTerm(), CURRENT_MAGIC);
-            long prePos = dataFileList.preAppend(dataBuffer.remaining());
+            //DLedgerEntryCoder.setIndexTerm(dataBuffer, nextIndex, memberState.currTerm(), CURRENT_MAGIC);
+            //long prePos = dataFileList.preAppend(dataBuffer.remaining());
+            long prePos = dataFileList.preAppend(entrySize);
             entry.setPos(prePos);
+            DLedgerEntryCoder.encode(entry, dataBuffer);
             PreConditions.check(prePos != -1, DLedgerResponseCode.DISK_ERROR, null);
-            DLedgerEntryCoder.setPos(dataBuffer, prePos);
+            //DLedgerEntryCoder.setPos(dataBuffer, prePos);
             for (AppendHook writeHook : appendHooks) {
                 writeHook.doHook(entry, dataBuffer.slice(), DLedgerEntry.BODY_OFFSET);
             }
