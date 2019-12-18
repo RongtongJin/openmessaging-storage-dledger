@@ -106,84 +106,84 @@ public class AppendAndPushTest extends ServerTestHarness {
         Assert.assertTrue(hasWait);
     }
 
-//    @Test
-//    public void testPushNetworkNotStable() throws Exception {
-//        String group = UUID.randomUUID().toString();
-//        String peers = String.format("n0-localhost:%d;n1-localhost:%d", nextPort(), nextPort());
-//
-//        DLedgerServer dLedgerServer0 = launchServer(group, peers, "n0", "n0", DLedgerConfig.FILE);
-//        AtomicBoolean sendSuccess = new AtomicBoolean(false);
-//        AppendEntryRequest appendEntryRequest = new AppendEntryRequest();
-//        appendEntryRequest.setGroup(group);
-//        appendEntryRequest.setRemoteId(dLedgerServer0.getMemberState().getSelfId());
-//        appendEntryRequest.setBody(new byte[128]);
-//        CompletableFuture<AppendEntryResponse> future = dLedgerServer0.handleAppend(appendEntryRequest);
-//        Assert.assertTrue(future instanceof AppendFuture);
-//        future.whenComplete((x, ex) -> {
-//            sendSuccess.set(true);
-//        });
-//        Thread.sleep(500);
-//        Assert.assertTrue(!sendSuccess.get());
-//        //start server1
-//        //System.out.println("start server1");
-//        DLedgerServer dLedgerServer1 = launchServer(group, peers, "n1", "n0", DLedgerConfig.FILE);
-//        Thread.sleep(1500);
-//        Assert.assertTrue(sendSuccess.get());
-//        //shutdown server1
-//        //System.out.println("shutdown server1");
-//        dLedgerServer1.shutdown();
-//        sendSuccess.set(false);
-//        future = dLedgerServer0.handleAppend(appendEntryRequest);
-//        Assert.assertTrue(future instanceof AppendFuture);
-//        future.whenComplete((x, ex) -> {
-//            sendSuccess.set(true);
-//        });
-//        Thread.sleep(500);
-//        Assert.assertTrue(!sendSuccess.get());
-//        //restart server1
-//        //System.out.println("restart server1");
-//        dLedgerServer1 = launchServer(group, peers, "n1", "n0", DLedgerConfig.FILE);
-//        Thread.sleep(6000);
-//        Assert.assertTrue(sendSuccess.get());
-//
-//        Assert.assertEquals(0, dLedgerServer0.getdLedgerStore().getLedgerBeginIndex());
-//        Assert.assertEquals(1, dLedgerServer0.getdLedgerStore().getLedgerEndIndex());
-//        Assert.assertEquals(0, dLedgerServer1.getdLedgerStore().getLedgerBeginIndex());
-//        Assert.assertEquals(1, dLedgerServer1.getdLedgerStore().getLedgerEndIndex());
-//    }
+    @Test
+    public void testPushNetworkNotStable() throws Exception {
+        String group = UUID.randomUUID().toString();
+        String peers = String.format("n0-localhost:%d;n1-localhost:%d", nextPort(), nextPort());
 
-//    @Test
-//    public void testPushMissed() throws Exception {
-//        String group = UUID.randomUUID().toString();
-//        String peers = String.format("n0-localhost:%d;n1-localhost:%d", nextPort(), nextPort());
-//        DLedgerServer dLedgerServer0 = launchServer(group, peers, "n0", "n0", DLedgerConfig.FILE);
-//        DLedgerServer dLedgerServer1 = launchServer(group, peers, "n1", "n0", DLedgerConfig.FILE);
-//        DLedgerServer mockServer1 = Mockito.spy(dLedgerServer1);
-//        AtomicInteger callNum = new AtomicInteger(0);
-//        doAnswer(x -> {
-//            if (callNum.incrementAndGet() % 3 == 0) {
-//                return new CompletableFuture<>();
-//            } else {
-//                return dLedgerServer1.handlePush(x.getArgument(0));
-//            }
-//        }).when(mockServer1).handlePush(any());
-//        ((DLedgerRpcNettyService) dLedgerServer1.getdLedgerRpcService()).setdLedgerServer(mockServer1);
-//
-//        for (int i = 0; i < 10; i++) {
-//            AppendEntryRequest appendEntryRequest = new AppendEntryRequest();
-//            appendEntryRequest.setGroup(group);
-//            appendEntryRequest.setBody(new byte[128]);
-//            appendEntryRequest.setRemoteId(dLedgerServer0.getMemberState().getSelfId());
-//            AppendEntryResponse appendEntryResponse = dLedgerServer0.handleAppend(appendEntryRequest).get(3, TimeUnit.SECONDS);
-//            Assert.assertEquals(appendEntryResponse.getCode(), DLedgerResponseCode.SUCCESS.getCode());
-//            Assert.assertEquals(i, appendEntryResponse.getIndex());
-//        }
-//        Assert.assertEquals(0, dLedgerServer0.getdLedgerStore().getLedgerBeginIndex());
-//        Assert.assertEquals(9, dLedgerServer0.getdLedgerStore().getLedgerEndIndex());
-//
-//        Assert.assertEquals(0, dLedgerServer1.getdLedgerStore().getLedgerBeginIndex());
-//        Assert.assertEquals(9, dLedgerServer1.getdLedgerStore().getLedgerEndIndex());
-//    }
+        DLedgerServer dLedgerServer0 = launchServer(group, peers, "n0", "n0", DLedgerConfig.FILE);
+        AtomicBoolean sendSuccess = new AtomicBoolean(false);
+        AppendEntryRequest appendEntryRequest = new AppendEntryRequest();
+        appendEntryRequest.setGroup(group);
+        appendEntryRequest.setRemoteId(dLedgerServer0.getMemberState().getSelfId());
+        appendEntryRequest.setBody(new byte[128]);
+        CompletableFuture<AppendEntryResponse> future = dLedgerServer0.handleAppend(appendEntryRequest);
+        Assert.assertTrue(future instanceof AppendFuture);
+        future.whenComplete((x, ex) -> {
+            sendSuccess.set(true);
+        });
+        Thread.sleep(500);
+        Assert.assertTrue(!sendSuccess.get());
+        //start server1
+        //System.out.println("start server1");
+        DLedgerServer dLedgerServer1 = launchServer(group, peers, "n1", "n0", DLedgerConfig.FILE);
+        Thread.sleep(1500);
+        Assert.assertTrue(sendSuccess.get());
+        //shutdown server1
+        //System.out.println("shutdown server1");
+        dLedgerServer1.shutdown();
+        sendSuccess.set(false);
+        future = dLedgerServer0.handleAppend(appendEntryRequest);
+        Assert.assertTrue(future instanceof AppendFuture);
+        future.whenComplete((x, ex) -> {
+            sendSuccess.set(true);
+        });
+        Thread.sleep(500);
+        Assert.assertTrue(!sendSuccess.get());
+        //restart server1
+        //System.out.println("restart server1");
+        dLedgerServer1 = launchServer(group, peers, "n1", "n0", DLedgerConfig.FILE);
+        Thread.sleep(1500);
+        Assert.assertTrue(sendSuccess.get());
+
+        Assert.assertEquals(0, dLedgerServer0.getdLedgerStore().getLedgerBeginIndex());
+        Assert.assertEquals(1, dLedgerServer0.getdLedgerStore().getLedgerEndIndex());
+        Assert.assertEquals(0, dLedgerServer1.getdLedgerStore().getLedgerBeginIndex());
+        Assert.assertEquals(1, dLedgerServer1.getdLedgerStore().getLedgerEndIndex());
+    }
+
+    @Test
+    public void testPushMissed() throws Exception {
+        String group = UUID.randomUUID().toString();
+        String peers = String.format("n0-localhost:%d;n1-localhost:%d", nextPort(), nextPort());
+        DLedgerServer dLedgerServer0 = launchServer(group, peers, "n0", "n0", DLedgerConfig.FILE);
+        DLedgerServer dLedgerServer1 = launchServer(group, peers, "n1", "n0", DLedgerConfig.FILE);
+        DLedgerServer mockServer1 = Mockito.spy(dLedgerServer1);
+        AtomicInteger callNum = new AtomicInteger(0);
+        doAnswer(x -> {
+            if (callNum.incrementAndGet() % 3 == 0) {
+                return new CompletableFuture<>();
+            } else {
+                return dLedgerServer1.handlePush(x.getArgument(0));
+            }
+        }).when(mockServer1).handlePush(any());
+        ((DLedgerRpcNettyService) dLedgerServer1.getdLedgerRpcService()).setdLedgerServer(mockServer1);
+
+        for (int i = 0; i < 10; i++) {
+            AppendEntryRequest appendEntryRequest = new AppendEntryRequest();
+            appendEntryRequest.setGroup(group);
+            appendEntryRequest.setBody(new byte[128]);
+            appendEntryRequest.setRemoteId(dLedgerServer0.getMemberState().getSelfId());
+            AppendEntryResponse appendEntryResponse = dLedgerServer0.handleAppend(appendEntryRequest).get(3, TimeUnit.SECONDS);
+            Assert.assertEquals(appendEntryResponse.getCode(), DLedgerResponseCode.SUCCESS.getCode());
+            Assert.assertEquals(i, appendEntryResponse.getIndex());
+        }
+        Assert.assertEquals(0, dLedgerServer0.getdLedgerStore().getLedgerBeginIndex());
+        Assert.assertEquals(9, dLedgerServer0.getdLedgerStore().getLedgerEndIndex());
+
+        Assert.assertEquals(0, dLedgerServer1.getdLedgerStore().getLedgerBeginIndex());
+        Assert.assertEquals(9, dLedgerServer1.getdLedgerStore().getLedgerEndIndex());
+    }
 
     @Test
     public void testPushTruncate() throws Exception {

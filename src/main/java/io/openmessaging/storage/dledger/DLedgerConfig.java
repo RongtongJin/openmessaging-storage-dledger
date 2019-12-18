@@ -38,7 +38,6 @@ public class DLedgerConfig {
     @Parameter(names = {"--store-base-dir", "-s"}, description = "The base store dir of this server")
     private String storeBaseDir = File.separator + "tmp" + File.separator + "dledgerstore";
 
-
     @Parameter(names = {"--peer-push-throttle-point"}, description = "When the follower is behind the leader more than this value, it will trigger the throttle")
     private int peerPushThrottlePoint = 300 * 1024 * 1024;
 
@@ -83,18 +82,14 @@ public class DLedgerConfig {
     @Parameter(names = {"--preferred-leader-id"}, description = "Preferred LeaderId")
     private String preferredLeaderId;
     private long maxLeadershipTransferWaitIndex = 1000;
-    private int minTakeLeadershipVoteIntervalMs =  30;
-    private int maxTakeLeadershipVoteIntervalMs =  100;
+    private int minTakeLeadershipVoteIntervalMs = 30;
+    private int maxTakeLeadershipVoteIntervalMs = 100;
 
-    private boolean enableBatchPush = false;
+    private boolean enableBatchPush = true;
 
-    private int batchPushMinNums = 20;
+    private int batchPushMinSize = 4 * 1024;
 
-    private int batchPushMaxElapsedTime = 150;
-
-    private int entryInitialCapacity = 5000;
-
-    private int entryCacheMaxSize = 5000;
+    private int batchPushMaxElapsedTime = 100;
 
     public String getDefaultPath() {
         return storeBaseDir + File.separator + "dledger-" + selfId;
@@ -388,12 +383,12 @@ public class DLedgerConfig {
         this.enableBatchPush = enableBatchPush;
     }
 
-    public int getBatchPushMinNums() {
-        return batchPushMinNums;
+    public int getBatchPushMinSize() {
+        return batchPushMinSize;
     }
 
-    public void setBatchPushMinNums(int batchPushMinNums) {
-        this.batchPushMinNums = batchPushMinNums;
+    public void setBatchPushMinSize(int batchPushMinSize) {
+        this.batchPushMinSize = batchPushMinSize;
     }
 
     public int getBatchPushMaxElapsedTime() {
@@ -402,21 +397,5 @@ public class DLedgerConfig {
 
     public void setBatchPushMaxElapsedTime(int batchPushMaxElapsedTime) {
         this.batchPushMaxElapsedTime = batchPushMaxElapsedTime;
-    }
-
-    public int getEntryInitialCapacity() {
-        return entryInitialCapacity;
-    }
-
-    public void setEntryInitialCapacity(int entryInitialCapacity) {
-        this.entryInitialCapacity = entryInitialCapacity;
-    }
-
-    public int getEntryCacheMaxSize() {
-        return entryCacheMaxSize;
-    }
-
-    public void setEntryCacheMaxSize(int entryCacheMaxSize) {
-        this.entryCacheMaxSize = entryCacheMaxSize;
     }
 }

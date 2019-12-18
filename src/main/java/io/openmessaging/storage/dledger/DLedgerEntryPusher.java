@@ -62,12 +62,12 @@ public class DLedgerEntryPusher {
 
     private Map<String, EntryDispatcher> dispatcherMap = new HashMap<>();
 
-    private ClearCache clearCache = new ClearCache(logger);
+    //private ClearCache clearCache = new ClearCache(logger);
 
 //    private Cache<Long, DLedgerEntry> entryCache =
 //        Caffeine.newBuilder().initialCapacity(2000).maximumSize(2000).build();
 
-    private Map<Long, DLedgerEntry> entryCache = new ConcurrentHashMap<>(2000);
+    // private Map<Long, DLedgerEntry> entryCache = new ConcurrentHashMap<>(2000);
 
     public DLedgerEntryPusher(DLedgerConfig dLedgerConfig, MemberState memberState, DLedgerStore dLedgerStore,
         DLedgerRpcService dLedgerRpcService) {
@@ -85,7 +85,7 @@ public class DLedgerEntryPusher {
     public void startup() {
         entryHandler.start();
         quorumAckChecker.start();
-        clearCache.start();
+        //    clearCache.start();
         for (EntryDispatcher dispatcher : dispatcherMap.values()) {
             dispatcher.start();
         }
@@ -94,7 +94,7 @@ public class DLedgerEntryPusher {
     public void shutdown() {
         entryHandler.shutdown();
         quorumAckChecker.shutdown();
-        clearCache.shutdown();
+        //  clearCache.shutdown();
         for (EntryDispatcher dispatcher : dispatcherMap.values()) {
             dispatcher.shutdown();
         }
@@ -161,7 +161,7 @@ public class DLedgerEntryPusher {
             if (old != null) {
                 logger.warn("[MONITOR] get old wait at index={}", entry.getIndex());
             }
-            entryCache.put(entry.getIndex(), entry);
+            // entryCache.put(entry.getIndex(), entry);
             // wakeUpDispatchers();
             return future;
         }
@@ -181,34 +181,35 @@ public class DLedgerEntryPusher {
 //        entryCache.invalidateAll();
 //    }
 
-    private DLedgerEntry getDLedgerEntry(long index) {
-        DLedgerEntry entry = entryCache.get(index);
-        return entry != null ? entry : dLedgerStore.get(index);
-    }
+//    private DLedgerEntry getDLedgerEntry(long index) {
+//        DLedgerEntry entry = entryCache.get(index);
+//        return entry != null ? entry : dLedgerStore.get(index);
+//    }
+//
+//    private class ClearCache extends ShutdownAbleThread {
+//
+//        public ClearCache(Logger logger) {
+//            super("ClearCache", logger);
+//        }
+//
+//        @Override
+//        public void doWork() {
+//            try {
+//                long endIndex = dLedgerStore.getLedgerEndIndex();
+//                for (long index : entryCache.keySet()) {
+//                    if (endIndex - index > 500) {
+//                        entryCache.remove(index);
+//                    }
+//                }
+//                waitForRunning(10);
+//            } catch (Exception e) {
+//                logger.error("error in {}", getName(), e);
+//            }
+//
+//        }
+//
+//    }
 
-    private class ClearCache extends ShutdownAbleThread {
-
-        public ClearCache(Logger logger) {
-            super("ClearCache", logger);
-        }
-
-        @Override
-        public void doWork() {
-            try {
-                long endIndex = dLedgerStore.getLedgerEndIndex();
-                for (long index : entryCache.keySet()) {
-                    if (endIndex - index > 500) {
-                        entryCache.remove(index);
-                    }
-                }
-                waitForRunning(10);
-            } catch (Exception e) {
-                logger.error("error in {}", getName(), e);
-            }
-
-        }
-
-    }
     /**
      * This thread will check the quorum index and complete the pending requests.
      */
@@ -375,6 +376,7 @@ public class DLedgerEntryPusher {
         private ConcurrentMap<Long, Long> pendingMap = new ConcurrentHashMap<>();
         private PushEntryRequest batchPushEntryRequest = new PushEntryRequest();
         private Quota quota = new Quota(dLedgerConfig.getPeerPushQuota());
+        private long batchSize = 0;
 
         public EntryDispatcher(String peerId, Logger logger) {
             super("EntryDispatcher-" + memberState.getSelfId() + "-" + peerId, logger);
@@ -382,6 +384,7 @@ public class DLedgerEntryPusher {
         }
 
         private boolean checkAndFreshState() {
+
             if (!memberState.isLeader()) {
                 return false;
             }
@@ -438,8 +441,8 @@ public class DLedgerEntryPusher {
         }
 
         private void doAppendInner(long index) throws Exception {
-            DLedgerEntry entry = getDLedgerEntry(index);
-            //DLedgerEntry entry = dLedgerStore.get(index);
+            //DLedgerEntry entry = getDLedgerEntry(index);
+            DLedgerEntry entry = dLedgerStore.get(index);
             PreConditions.check(entry != null, DLedgerResponseCode.UNKNOWN, "writeIndex=%d", index);
             checkQuotaAndWait(entry);
             PushEntryRequest request = buildPushRequest(entry, PushEntryRequest.Type.APPEND);
@@ -499,15 +502,17 @@ public class DLedgerEntryPusher {
             });
             lastPushCommitTimeMs = System.currentTimeMillis();
             batchPushEntryRequest.getEntries().clear();
+            batchSize = 0;
         }
 
         private void doBatchAppendInner(long index) throws Exception {
-            DLedgerEntry entry = getDLedgerEntry(index);
-            //DLedgerEntry entry = dLedgerStore.get(index);
+            //DLedgerEntry entry = getDLedgerEntry(index);
+            DLedgerEntry entry = dLedgerStore.get(index);
             PreConditions.check(entry != null, DLedgerResponseCode.UNKNOWN, "writeIndex=%d", index);
             //System.out.println(dLedgerConfig.getSelfId() + " add entry" + index);
             batchPushEntryRequest.addEntry(entry);
-            if (batchPushEntryRequest.getEntries().size() >= dLedgerConfig.getBatchPushMinNums()
+            batchSize += entry.getSize();
+            if (batchSize >= dLedgerConfig.getBatchPushMinSize()
                 || DLedgerUtils.elapsed(lastPushCommitTimeMs) >= dLedgerConfig.getBatchPushMaxElapsedTime()) {
                 sendBatchPushEntryRequest();
             }
@@ -562,6 +567,16 @@ public class DLedgerEntryPusher {
             }
         }
 
+        private void doCheckBatchAppendResponse() throws Exception {
+            long peerWaterMark = getPeerWaterMark(term, peerId);
+            Long sendTimeMs = pendingMap.get(peerWaterMark + 1);
+            if (sendTimeMs != null && System.currentTimeMillis() - sendTimeMs > dLedgerConfig.getMaxPushTimeOutMs()) {
+                logger.warn("[Push-{}]Retry to push entries from {}", peerId, peerWaterMark + 1);
+                writeIndex = peerWaterMark + 1;
+                pendingMap.clear();
+            }
+        }
+
         private void doBatchAppend() throws Exception {
             //throw new UnsupportedOperationException("unsupported batch append");
             while (true) {
@@ -569,7 +584,7 @@ public class DLedgerEntryPusher {
                 if (!checkAndFreshState()) {
                     break;
                 }
-                if (batchPushEntryRequest.getEntries().size() > 0 && DLedgerUtils.elapsed(lastPushCommitTimeMs) > dLedgerConfig.getBatchPushMaxElapsedTime()) {
+                if (batchPushEntryRequest.getEntries().size() > 0 && DLedgerUtils.elapsed(lastPushCommitTimeMs) >= dLedgerConfig.getBatchPushMaxElapsedTime()) {
                     sendBatchPushEntryRequest();
                 }
                 if (type.get() != PushEntryRequest.Type.BATCH_APPEND) {
@@ -577,9 +592,21 @@ public class DLedgerEntryPusher {
                 }
                 if (writeIndex > dLedgerStore.getLedgerEndIndex()) {
                     doCommit();
+                    doCheckBatchAppendResponse();
+                    break;
+                }
+                if (pendingMap.size() >= maxPendingSize && (DLedgerUtils.elapsed(lastCheckLeakTimeMs) > 1000)) {
+                    long peerWaterMark = getPeerWaterMark(term, peerId);
+                    for (Long index : pendingMap.keySet()) {
+                        if (index < peerWaterMark) {
+                            pendingMap.remove(index);
+                        }
+                    }
+                    lastCheckLeakTimeMs = System.currentTimeMillis();
                     break;
                 }
                 if (pendingMap.size() >= maxPendingSize) {
+                    doCheckBatchAppendResponse();
                     break;
                 }
                 //System.out.println(dLedgerConfig.getSelfId() + " doBatchAppendInner " + writeIndex);
@@ -590,8 +617,8 @@ public class DLedgerEntryPusher {
 
         private void doTruncate(long truncateIndex) throws Exception {
             PreConditions.check(type.get() == PushEntryRequest.Type.TRUNCATE, DLedgerResponseCode.UNKNOWN);
-            DLedgerEntry truncateEntry = getDLedgerEntry(truncateIndex);
-            //DLedgerEntry truncateEntry = dLedgerStore.get(truncateIndex);
+            //DLedgerEntry truncateEntry = getDLedgerEntry(truncateIndex);
+            DLedgerEntry truncateEntry = dLedgerStore.get(truncateIndex);
             PreConditions.check(truncateEntry != null, DLedgerResponseCode.UNKNOWN);
             logger.info("[Push-{}]Will push data to truncate truncateIndex={} pos={}", peerId, truncateIndex, truncateEntry.getPos());
             PushEntryRequest truncateRequest = buildPushRequest(truncateEntry, PushEntryRequest.Type.TRUNCATE);
@@ -658,8 +685,8 @@ public class DLedgerEntryPusher {
                     compareIndex = dLedgerStore.getLedgerEndIndex();
                 }
 
-                DLedgerEntry entry = getDLedgerEntry(compareIndex);
-                //DLedgerEntry entry = dLedgerStore.get(compareIndex);
+                //DLedgerEntry entry = getDLedgerEntry(compareIndex);
+                DLedgerEntry entry = dLedgerStore.get(compareIndex);
                 PreConditions.check(entry != null, DLedgerResponseCode.INTERNAL_ERROR, "compareIndex=%d", compareIndex);
                 PushEntryRequest request = buildPushRequest(entry, PushEntryRequest.Type.COMPARE);
                 CompletableFuture<PushEntryResponse> responseFuture = dLedgerRpcService.push(request);
@@ -839,8 +866,10 @@ public class DLedgerEntryPusher {
             }
         }
 
-        private void handleDoBatchAppend(PushEntryRequest request, CompletableFuture<PushEntryResponse> future) {
+        private void handleDoBatchAppend(long writeIndex, PushEntryRequest request,
+            CompletableFuture<PushEntryResponse> future) {
             try {
+                PreConditions.check(writeIndex == request.getEntries().get(0).getIndex(), DLedgerResponseCode.INCONSISTENT_STATE);
                 for (DLedgerEntry entry : request.getEntries()) {
                     dLedgerStore.appendAsFollower(entry, request.getTerm(), request.getLeaderId());
                 }
@@ -995,7 +1024,7 @@ public class DLedgerEntryPusher {
                             handleDoAppend(nextIndex, request, pair.getValue());
                             break;
                         case BATCH_APPEND:
-                            handleDoBatchAppend(request, pair.getValue());
+                            handleDoBatchAppend(nextIndex, request, pair.getValue());
                             break;
                     }
                 }
