@@ -162,7 +162,7 @@ public class DLedgerEntryPusher {
                 logger.warn("[MONITOR] get old wait at index={}", entry.getIndex());
             }
             // entryCache.put(entry.getIndex(), entry);
-            // wakeUpDispatchers();
+            wakeUpDispatchers();
             return future;
         }
     }
@@ -593,16 +593,6 @@ public class DLedgerEntryPusher {
                 if (writeIndex > dLedgerStore.getLedgerEndIndex()) {
                     doCommit();
                     doCheckBatchAppendResponse();
-                    break;
-                }
-                if (pendingMap.size() >= maxPendingSize && (DLedgerUtils.elapsed(lastCheckLeakTimeMs) > 1000)) {
-                    long peerWaterMark = getPeerWaterMark(term, peerId);
-                    for (Long index : pendingMap.keySet()) {
-                        if (index < peerWaterMark) {
-                            pendingMap.remove(index);
-                        }
-                    }
-                    lastCheckLeakTimeMs = System.currentTimeMillis();
                     break;
                 }
                 if (pendingMap.size() >= maxPendingSize) {
