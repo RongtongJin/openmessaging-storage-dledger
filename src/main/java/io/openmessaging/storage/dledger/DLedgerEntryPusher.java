@@ -162,7 +162,7 @@ public class DLedgerEntryPusher {
                 logger.warn("[MONITOR] get old wait at index={}", entry.getIndex());
             }
             // entryCache.put(entry.getIndex(), entry);
-            wakeUpDispatchers();
+            //wakeUpDispatchers();
             return future;
         }
     }
