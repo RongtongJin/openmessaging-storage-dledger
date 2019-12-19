@@ -369,7 +369,7 @@ public class DLedgerEntryPusher {
         private String peerId;
         private long compareIndex = -1;
         private long writeIndex = -1;
-        private int maxPendingSize = 2000;
+        private int maxPendingSize = 1000;
         private long term = -1;
         private String leaderId = null;
         private long lastCheckLeakTimeMs = System.currentTimeMillis();
@@ -572,6 +572,10 @@ public class DLedgerEntryPusher {
             Long sendTimeMs = pendingMap.get(peerWaterMark + 1);
             if (sendTimeMs != null && System.currentTimeMillis() - sendTimeMs > dLedgerConfig.getMaxPushTimeOutMs()) {
                 logger.warn("[Push-{}]Retry to push entries from {}", peerId, peerWaterMark + 1);
+                if (memberState.getPeersLiveTable().get(peerId) == Boolean.FALSE) {
+                    changeState(-1, PushEntryRequest.Type.COMPARE);
+                    return;
+                }
                 writeIndex = peerWaterMark + 1;
                 pendingMap.clear();
             }
