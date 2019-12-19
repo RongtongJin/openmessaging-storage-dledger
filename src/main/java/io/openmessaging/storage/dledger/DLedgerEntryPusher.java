@@ -1060,7 +1060,7 @@ public class DLedgerEntryPusher {
                     //System.out.println(dLedgerConfig.getSelfId() + " get nextIndex " + nextIndex);
                     Pair<PushEntryRequest, CompletableFuture<PushEntryResponse>> pair = writeRequestMap.remove(nextIndex);
                     if (pair == null) {
-                        if (dLedgerConfig.isEnableBatchPush()) {
+                        if (!dLedgerConfig.isEnableBatchPush()) {
                             checkAbnormalFuture(dLedgerStore.getLedgerEndIndex());
                         } else {
                             checkBatchAbnormalFuture(dLedgerStore.getLedgerEndIndex());
