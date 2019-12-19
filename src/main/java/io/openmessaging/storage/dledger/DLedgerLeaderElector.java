@@ -100,6 +100,8 @@ public class DLedgerLeaderElector {
 
     public CompletableFuture<HeartBeatResponse> handleHeartBeat(HeartBeatRequest request) throws Exception {
 
+        logger.info("handleHeartBeat");
+
         if (!memberState.isPeerMember(request.getLeaderId())) {
             logger.warn("[BUG] [HandleHeartBeat] remoteId={} is an unknown member", request.getLeaderId());
             return CompletableFuture.completedFuture(new HeartBeatResponse().term(memberState.currTerm()).code(DLedgerResponseCode.UNKNOWN_MEMBER.getCode()));
@@ -241,6 +243,7 @@ public class DLedgerLeaderElector {
     }
 
     private void sendHeartbeats(long term, String leaderId) throws Exception {
+        logger.info("sendHeartbeats");
         final AtomicInteger allNum = new AtomicInteger(1);
         final AtomicInteger succNum = new AtomicInteger(1);
         final AtomicInteger notReadyNum = new AtomicInteger(0);
@@ -303,6 +306,8 @@ public class DLedgerLeaderElector {
         beatLatch.await(heartBeatTimeIntervalMs, TimeUnit.MILLISECONDS);
         if (memberState.isQuorum(succNum.get())) {
             lastSuccHeartBeatTime = System.currentTimeMillis();
+            logger.info("[{}] Parse heartbeat responses in cost={} term={} allNum={} succNum={} notReadyNum={} inconsistLeader={} maxTerm={} peerSize={} lastSuccHeartBeatTime={}",
+                memberState.getSelfId(), DLedgerUtils.elapsed(startHeartbeatTimeMs), term, allNum.get(), succNum.get(), notReadyNum.get(), inconsistLeader.get(), maxTerm.get(), memberState.peerSize(), new Timestamp(lastSuccHeartBeatTime));
         } else {
             logger.info("[{}] Parse heartbeat responses in cost={} term={} allNum={} succNum={} notReadyNum={} inconsistLeader={} maxTerm={} peerSize={} lastSuccHeartBeatTime={}",
                 memberState.getSelfId(), DLedgerUtils.elapsed(startHeartbeatTimeMs), term, allNum.get(), succNum.get(), notReadyNum.get(), inconsistLeader.get(), maxTerm.get(), memberState.peerSize(), new Timestamp(lastSuccHeartBeatTime));

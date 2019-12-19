@@ -976,6 +976,62 @@ public class DLedgerEntryPusher {
             pair.getValue().complete(buildResponse(pair.getKey(), DLedgerResponseCode.INCONSISTENT_STATE.getCode()));
         }
 
+        private void checkBatchAbnormalFuture(long endIndex) {
+            if (DLedgerUtils.elapsed(lastCheckFastForwardTimeMs) < 1000) {
+                return;
+            }
+            lastCheckFastForwardTimeMs = System.currentTimeMillis();
+            if (writeRequestMap.isEmpty()) {
+                return;
+            }
+            long minFastForwardFirstIndex = Long.MAX_VALUE;
+            for (Pair<PushEntryRequest, CompletableFuture<PushEntryResponse>> pair : writeRequestMap.values()) {
+                DLedgerEntry firstEntryInRequest = pair.getKey().getEntries().get(0);
+                DLedgerEntry lastEntryInRequest = pair.getKey().getEntries().get(pair.getKey().getEntries().size() - 1);
+                long firstIndex = firstEntryInRequest.getIndex();
+                long lastIndex = lastEntryInRequest.getIndex();
+
+                //Fall behind
+                if (lastIndex <= endIndex) {
+                    try {
+                        DLedgerEntry localLastEntry = dLedgerStore.get(lastIndex);
+                        DLedgerEntry localFirstEntry = dLedgerStore.get(lastIndex);
+                        PreConditions.check(lastEntryInRequest.equals(localLastEntry), DLedgerResponseCode.INCONSISTENT_STATE);
+                        PreConditions.check(firstEntryInRequest.equals(localFirstEntry), DLedgerResponseCode.INCONSISTENT_STATE);
+                        pair.getValue().complete(buildBatchPushResponse(pair.getKey(), DLedgerResponseCode.SUCCESS.getCode()));
+                        logger.warn("[PushFallBehind]The leader pushed an batch entry last index={} smaller than current ledgerEndIndex={}, maybe the last ack is missed", lastIndex, endIndex);
+                    } catch (Throwable t) {
+                        logger.error("[PushFallBehind]The leader pushed an batch entry last index={} smaller than current ledgerEndIndex={}, maybe the last ack is missed", lastIndex, endIndex, t);
+                        pair.getValue().complete(buildBatchPushResponse(pair.getKey(), DLedgerResponseCode.INCONSISTENT_STATE.getCode()));
+                    }
+                    writeRequestMap.remove(firstIndex);
+                    continue;
+                }
+                //Just OK
+                if (firstIndex == endIndex + 1) {
+                    //The next entry is coming, just return
+                    return;
+                }
+                //Fast forward
+                TimeoutFuture<PushEntryResponse> future = (TimeoutFuture<PushEntryResponse>) pair.getValue();
+                if (!future.isTimeOut()) {
+                    continue;
+                }
+                if (firstIndex < minFastForwardFirstIndex) {
+                    minFastForwardFirstIndex = firstIndex;
+                }
+            }
+            if (minFastForwardFirstIndex == Long.MAX_VALUE) {
+                return;
+            }
+            Pair<PushEntryRequest, CompletableFuture<PushEntryResponse>> pair = writeRequestMap.get(minFastForwardFirstIndex);
+            if (pair == null) {
+                return;
+            }
+            logger.warn("[PushFastForward] ledgerEndIndex={} entryIndex={}", endIndex, minFastForwardFirstIndex);
+            pair.getValue().complete(buildResponse(pair.getKey(), DLedgerResponseCode.INCONSISTENT_STATE.getCode()));
+        }
+
         @Override
         public void doWork() {
             try {
@@ -1004,7 +1060,11 @@ public class DLedgerEntryPusher {
                     //System.out.println(dLedgerConfig.getSelfId() + " get nextIndex " + nextIndex);
                     Pair<PushEntryRequest, CompletableFuture<PushEntryResponse>> pair = writeRequestMap.remove(nextIndex);
                     if (pair == null) {
-                        checkAbnormalFuture(dLedgerStore.getLedgerEndIndex());
+                        if (dLedgerConfig.isEnableBatchPush()) {
+                            checkAbnormalFuture(dLedgerStore.getLedgerEndIndex());
+                        } else {
+                            checkBatchAbnormalFuture(dLedgerStore.getLedgerEndIndex());
+                        }
                         waitForRunning(1);
                         return;
                     }
