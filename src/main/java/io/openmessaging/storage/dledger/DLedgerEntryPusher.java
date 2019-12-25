@@ -593,6 +593,9 @@ public class DLedgerEntryPusher {
                 if (type.get() != PushEntryRequest.Type.BATCH_APPEND) {
                     break;
                 }
+                if (batchPushEntryRequest.getEntries().size() > 0 && DLedgerUtils.elapsed(lastPushCommitTimeMs) >= dLedgerConfig.getBatchPushMaxElapsedTime()) {
+                    sendBatchPushEntryRequest();
+                }
                 if (writeIndex > dLedgerStore.getLedgerEndIndex()) {
                     doCommit();
                     doCheckBatchAppendResponse();
@@ -601,9 +604,6 @@ public class DLedgerEntryPusher {
                 if (pendingMap.size() >= maxPendingSize) {
                     doCheckBatchAppendResponse();
                     break;
-                }
-                if (batchPushEntryRequest.getEntries().size() > 0 && DLedgerUtils.elapsed(lastPushCommitTimeMs) >= dLedgerConfig.getBatchPushMaxElapsedTime()) {
-                    sendBatchPushEntryRequest();
                 }
                 //System.out.println(dLedgerConfig.getSelfId() + " doBatchAppendInner " + writeIndex);
                 doBatchAppendInner(writeIndex);
