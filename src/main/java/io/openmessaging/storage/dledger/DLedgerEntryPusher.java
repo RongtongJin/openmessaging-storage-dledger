@@ -421,6 +421,7 @@ public class DLedgerEntryPusher {
             batchPushEntryRequest.setLeaderId(leaderId);
             batchPushEntryRequest.setTerm(term);
             batchPushEntryRequest.setType(PushEntryRequest.Type.BATCH_APPEND);
+            batchPushEntryRequest.getEntries().clear();
         }
 
         private void checkQuotaAndWait(DLedgerEntry entry) {
@@ -578,6 +579,7 @@ public class DLedgerEntryPusher {
                 }
                 writeIndex = peerWaterMark + 1;
                 pendingMap.clear();
+                resetBatchPushEntryRequest();
             }
         }
 
@@ -587,9 +589,6 @@ public class DLedgerEntryPusher {
                 //System.out.println("writeIndex: " + writeIndex + ",endIndex: " + dLedgerStore.getLedgerEndIndex());
                 if (!checkAndFreshState()) {
                     break;
-                }
-                if (batchPushEntryRequest.getEntries().size() > 0 && DLedgerUtils.elapsed(lastPushCommitTimeMs) >= dLedgerConfig.getBatchPushMaxElapsedTime()) {
-                    sendBatchPushEntryRequest();
                 }
                 if (type.get() != PushEntryRequest.Type.BATCH_APPEND) {
                     break;
@@ -602,6 +601,9 @@ public class DLedgerEntryPusher {
                 if (pendingMap.size() >= maxPendingSize) {
                     doCheckBatchAppendResponse();
                     break;
+                }
+                if (batchPushEntryRequest.getEntries().size() > 0 && DLedgerUtils.elapsed(lastPushCommitTimeMs) >= dLedgerConfig.getBatchPushMaxElapsedTime()) {
+                    sendBatchPushEntryRequest();
                 }
                 //System.out.println(dLedgerConfig.getSelfId() + " doBatchAppendInner " + writeIndex);
                 doBatchAppendInner(writeIndex);
