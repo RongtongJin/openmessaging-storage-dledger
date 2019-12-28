@@ -675,7 +675,7 @@ public class DLedgerEntryPusher {
                 //revise the compareIndex
                 if (compareIndex == -1) {
                     compareIndex = dLedgerStore.getLedgerEndIndex();
-                    logger.info("[Push-{}][DoCompare] compareIndex=-1 means start to compare", peerId);
+                    logger.info("[Push-{}][DoCompare] compareIndex=-1 means start to compare, compare index {}", peerId, compareIndex);
                 } else if (compareIndex > dLedgerStore.getLedgerEndIndex() || compareIndex < dLedgerStore.getLedgerBeginIndex()) {
                     logger.info("[Push-{}][DoCompare] compareIndex={} out of range {}-{}", peerId, compareIndex, dLedgerStore.getLedgerBeginIndex(), dLedgerStore.getLedgerEndIndex());
                     compareIndex = dLedgerStore.getLedgerEndIndex();
@@ -1005,13 +1005,13 @@ public class DLedgerEntryPusher {
                 if (lastIndex <= endIndex) {
                     try {
                         DLedgerEntry localLastEntry = dLedgerStore.get(lastIndex);
-                        DLedgerEntry localFirstEntry = dLedgerStore.get(lastIndex);
+                        DLedgerEntry localFirstEntry = dLedgerStore.get(firstIndex);
                         PreConditions.check(lastEntryInRequest.equals(localLastEntry), DLedgerResponseCode.INCONSISTENT_STATE);
                         PreConditions.check(firstEntryInRequest.equals(localFirstEntry), DLedgerResponseCode.INCONSISTENT_STATE);
                         pair.getValue().complete(buildBatchPushResponse(pair.getKey(), DLedgerResponseCode.SUCCESS.getCode()));
-                        logger.warn("[PushFallBehind]The leader pushed an batch entry last index={} smaller than current ledgerEndIndex={}, maybe the last ack is missed", lastIndex, endIndex);
+                        logger.warn("[Batch PushFallBehind]The leader pushed an batch entry last index={} smaller than current ledgerEndIndex={}, maybe the last ack is missed", lastIndex, endIndex);
                     } catch (Throwable t) {
-                        logger.error("[PushFallBehind]The leader pushed an batch entry last index={} smaller than current ledgerEndIndex={}, maybe the last ack is missed", lastIndex, endIndex, t);
+                        logger.error("[Batch PushFallBehind]The leader pushed an batch entry last index={} smaller than current ledgerEndIndex={}, maybe the last ack is missed", lastIndex, endIndex, t);
                         pair.getValue().complete(buildBatchPushResponse(pair.getKey(), DLedgerResponseCode.INCONSISTENT_STATE.getCode()));
                     }
                     writeRequestMap.remove(firstIndex);
