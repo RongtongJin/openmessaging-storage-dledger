@@ -700,9 +700,9 @@ public class DLedgerEntryPusher {
                      */
                     if (compareIndex == response.getEndIndex()) {
                         if (dLedgerConfig.isEnableBatchPush()) {
-                            changeState(truncateIndex, PushEntryRequest.Type.BATCH_APPEND);
+                            changeState(compareIndex, PushEntryRequest.Type.BATCH_APPEND);
                         } else {
-                            changeState(truncateIndex, PushEntryRequest.Type.APPEND);
+                            changeState(compareIndex, PushEntryRequest.Type.APPEND);
                         }
                         break;
                     } else {
@@ -1039,7 +1039,7 @@ public class DLedgerEntryPusher {
                 return;
             }
             logger.warn("[PushFastForward] ledgerEndIndex={} entryIndex={}", endIndex, minFastForwardFirstIndex);
-            pair.getValue().complete(buildResponse(pair.getKey(), DLedgerResponseCode.INCONSISTENT_STATE.getCode()));
+            pair.getValue().complete(buildBatchPushResponse(pair.getKey(), DLedgerResponseCode.INCONSISTENT_STATE.getCode()));
         }
 
         @Override
