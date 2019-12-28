@@ -699,7 +699,11 @@ public class DLedgerEntryPusher {
                      * 2.Truncate the follower, if the follower has some dirty entries.
                      */
                     if (compareIndex == response.getEndIndex()) {
-                        changeState(compareIndex, PushEntryRequest.Type.APPEND);
+                        if (dLedgerConfig.isEnableBatchPush()) {
+                            changeState(truncateIndex, PushEntryRequest.Type.BATCH_APPEND);
+                        } else {
+                            changeState(truncateIndex, PushEntryRequest.Type.APPEND);
+                        }
                         break;
                     } else {
                         truncateIndex = compareIndex;
