@@ -639,9 +639,16 @@ public class DLedgerEntryPusher {
                     writeIndex = index + 1;
                     break;
                 case COMPARE:
-                    if (this.type.compareAndSet(PushEntryRequest.Type.APPEND, PushEntryRequest.Type.COMPARE)) {
-                        compareIndex = -1;
-                        pendingMap.clear();
+                    if(dLedgerConfig.isEnableBatchPush()){
+                        if (this.type.compareAndSet(PushEntryRequest.Type.BATCH_APPEND, PushEntryRequest.Type.COMPARE)) {
+                            compareIndex = -1;
+                            pendingMap.clear();
+                        }
+                    } else {
+                        if (this.type.compareAndSet(PushEntryRequest.Type.APPEND, PushEntryRequest.Type.COMPARE)) {
+                            compareIndex = -1;
+                            pendingMap.clear();
+                        }
                     }
                     break;
                 case TRUNCATE:
