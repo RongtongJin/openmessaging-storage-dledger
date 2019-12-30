@@ -569,18 +569,34 @@ public class DLedgerEntryPusher {
         }
 
         private void doCheckBatchAppendResponse() throws Exception {
-            long peerWaterMark = getPeerWaterMark(term, peerId);
-            Long sendTimeMs = pendingMap.get(peerWaterMark + 1);
-            if (sendTimeMs != null && System.currentTimeMillis() - sendTimeMs > dLedgerConfig.getMaxPushTimeOutMs()) {
-                logger.warn("[Push-{}]Retry to push entries from {}", peerId, peerWaterMark + 1);
-                if (memberState.getPeersLiveTable().get(peerId) == Boolean.FALSE) {
-                    changeState(-1, PushEntryRequest.Type.COMPARE);
-                    return;
-                }
-                writeIndex = peerWaterMark + 1;
-                pendingMap.clear();
-                resetBatchPushEntryRequest();
+            if (memberState.getPeersLiveTable().get(peerId) == Boolean.FALSE) {
+                changeState(-1, PushEntryRequest.Type.COMPARE);
+                return;
             }
+
+            if (DLedgerUtils.elapsed(lastCheckLeakTimeMs) > 1000) {
+                long peerWaterMark = getPeerWaterMark(term, peerId);
+                long firstIndex = Long.MAX_VALUE;
+                for (Long index : pendingMap.keySet()) {
+                    if (index < peerWaterMark) {
+                        pendingMap.remove(index);
+                    } else if (index < firstIndex) {
+                        firstIndex = index;
+                    }
+                }
+                if (firstIndex != Long.MAX_VALUE) {
+                    Long sendTimeMs = pendingMap.get(firstIndex);
+                    if (sendTimeMs != null && System.currentTimeMillis() - sendTimeMs > dLedgerConfig.getMaxPushTimeOutMs()) {
+                        logger.warn("[Push-{}]Retry to push entries from {}", peerId, peerWaterMark + 1);
+                        writeIndex = peerWaterMark + 1;
+                        pendingMap.clear();
+                        resetBatchPushEntryRequest();
+                    }
+                }
+                lastCheckLeakTimeMs=System.currentTimeMillis();
+            }
+
+
         }
 
         private void doBatchAppend() throws Exception {
