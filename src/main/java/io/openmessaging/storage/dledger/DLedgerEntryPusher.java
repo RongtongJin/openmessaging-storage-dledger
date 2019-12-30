@@ -593,9 +593,8 @@ public class DLedgerEntryPusher {
                         resetBatchPushEntryRequest();
                     }
                 }
-                lastCheckLeakTimeMs=System.currentTimeMillis();
+                lastCheckLeakTimeMs = System.currentTimeMillis();
             }
-
 
         }
 
