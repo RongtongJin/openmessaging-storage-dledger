@@ -516,8 +516,7 @@ public class DLedgerEntryPusher {
             //System.out.println(dLedgerConfig.getSelfId() + " add entry" + index);
             batchPushEntryRequest.addEntry(entry);
             batchSize += entry.getSize();
-            if (batchSize >= dLedgerConfig.getBatchPushMinSize()
-                || DLedgerUtils.elapsed(lastPushCommitTimeMs) >= dLedgerConfig.getBatchPushMaxElapsedTime()) {
+            if (batchSize >= dLedgerConfig.getBatchPushMinSize()) {
                 sendBatchPushEntryRequest();
             }
         }
@@ -597,7 +596,6 @@ public class DLedgerEntryPusher {
             sendBatchPushEntryRequest();
         }
 
-
         private void doBatchAppend() throws Exception {
             //throw new UnsupportedOperationException("unsupported batch append");
             while (true) {
@@ -608,11 +606,11 @@ public class DLedgerEntryPusher {
                 if (type.get() != PushEntryRequest.Type.BATCH_APPEND) {
                     break;
                 }
-                if (batchPushEntryRequest.getCount() > 0 && DLedgerUtils.elapsed(lastPushCommitTimeMs) >= dLedgerConfig.getBatchPushMaxElapsedTime()) {
-                    sendBatchPushEntryRequest();
-                    break;
-                }
                 if (writeIndex > dLedgerStore.getLedgerEndIndex()) {
+                    if (batchPushEntryRequest.getCount() > 0) {
+                        sendBatchPushEntryRequest();
+                        break;
+                    }
                     doCommit();
                     doCheckBatchAppendResponse();
                     break;
