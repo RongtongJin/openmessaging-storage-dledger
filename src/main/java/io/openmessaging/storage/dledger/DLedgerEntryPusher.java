@@ -571,10 +571,10 @@ public class DLedgerEntryPusher {
         }
 
         private void doCheckBatchAppendResponse() throws Exception {
-            if (memberState.getPeersLiveTable().get(peerId) == Boolean.FALSE) {
-                changeState(-1, PushEntryRequest.Type.COMPARE);
-                return;
-            }
+//            if (memberState.getPeersLiveTable().get(peerId) == Boolean.FALSE) {
+//                changeState(-1, PushEntryRequest.Type.COMPARE);
+//                return;
+//            }
 
             long peerWaterMark = getPeerWaterMark(term, peerId);
             Pair pair = batchPendingMap.get(peerWaterMark + 1);
