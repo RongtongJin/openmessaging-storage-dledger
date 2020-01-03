@@ -374,6 +374,7 @@ public class DLedgerEntryPusher {
         private long term = -1;
         private String leaderId = null;
         private long lastCheckLeakTimeMs = System.currentTimeMillis();
+        private long testTimeMs = System.currentTimeMillis();
         private ConcurrentMap<Long, Long> pendingMap = new ConcurrentHashMap<>();
         private ConcurrentMap<Long, Pair<Long, Integer>> batchPendingMap = new ConcurrentHashMap<>();
         private PushEntryRequest batchPushEntryRequest = new PushEntryRequest();
@@ -523,6 +524,7 @@ public class DLedgerEntryPusher {
 
         private void doCommit() throws Exception {
             if (DLedgerUtils.elapsed(lastPushCommitTimeMs) > 1000) {
+                //System.out.println("doCommit");
                 PushEntryRequest request = buildPushRequest(null, PushEntryRequest.Type.COMMIT);
                 //Ignore the results
                 dLedgerRpcService.push(request);
@@ -571,16 +573,20 @@ public class DLedgerEntryPusher {
         }
 
         private void doCheckBatchAppendResponse() throws Exception {
-//            if (memberState.getPeersLiveTable().get(peerId) == Boolean.FALSE) {
-//                changeState(-1, PushEntryRequest.Type.COMPARE);
-//                return;
-//            }
+            //System.out.println("doCheckBatchAppendResponse()");
+            if (memberState.getPeersLiveTable().get(peerId) == Boolean.FALSE) {
+                //System.out.println("change to compare");
+                changeState(-1, PushEntryRequest.Type.COMPARE);
+                return;
+            }
 
+            //System.out.println("resend");
             long peerWaterMark = getPeerWaterMark(term, peerId);
             Pair pair = batchPendingMap.get(peerWaterMark + 1);
-            Long sendTimeMs = (Long) pair.getKey();
-            if (sendTimeMs != null && System.currentTimeMillis() - sendTimeMs > dLedgerConfig.getMaxPushTimeOutMs()) {
+            //System.out.println("resend2");
+            if (pair != null && System.currentTimeMillis() - (long) pair.getKey() > dLedgerConfig.getMaxPushTimeOutMs()) {
                 logger.warn("[Push-{}]Retry to push batch entry at {}", peerId, peerWaterMark + 1);
+                //System.out.println("reSendBatchEntry");
                 reSendBatchEntry(peerWaterMark + 1, (Integer) pair.getValue());
             }
         }
@@ -599,33 +605,43 @@ public class DLedgerEntryPusher {
         private void doBatchAppend() throws Exception {
             //throw new UnsupportedOperationException("unsupported batch append");
             while (true) {
-                //System.out.println("writeIndex: " + writeIndex + ",endIndex: " + dLedgerStore.getLedgerEndIndex());
+                //System.out.println("interval is "+ DLedgerUtils.elapsed(testTimeMs));
+                //System.out.println("current remoteId "+peerId+" writeIndex: " + writeIndex + ",endIndex: " + dLedgerStore.getLedgerEndIndex());
+                testTimeMs = System.currentTimeMillis();
                 if (!checkAndFreshState()) {
+                    //System.out.println("!checkAndFreshState()");
                     break;
                 }
                 if (type.get() != PushEntryRequest.Type.BATCH_APPEND) {
+                    //System.out.println("type.get() != PushEntryRequest.Type.BATCH_APPEND");
                     break;
                 }
                 if (writeIndex > dLedgerStore.getLedgerEndIndex()) {
+                    //System.out.println("writeIndex > dLedgerStore.getLedgerEndIndex()");
                     if (batchPushEntryRequest.getCount() > 0) {
                         sendBatchPushEntryRequest();
-                        break;
+                        //System.out.println("continue");
+                        continue;
                     }
                     doCommit();
                     doCheckBatchAppendResponse();
+                    //System.out.println("break");
                     break;
                 }
                 if (batchPendingMap.size() >= maxBatchPendingSize || (DLedgerUtils.elapsed(lastCheckLeakTimeMs) > 1000)) {
+                    //System.out.println("clear batchPendingMap");
                     long peerWaterMark = getPeerWaterMark(term, peerId);
                     for (Map.Entry<Long, Pair<Long, Integer>> entry : batchPendingMap.entrySet()) {
                         if (entry.getKey() + entry.getValue().getValue() < peerWaterMark) {
                             batchPendingMap.remove(entry.getKey());
+                            //System.out.println("remove "+entry.getKey());
                         }
                     }
                     lastCheckLeakTimeMs = System.currentTimeMillis();
                 }
 
                 if (batchPendingMap.size() >= maxBatchPendingSize) {
+                    //System.out.println("batchPendingMap.size() >= maxBatchPendingSize");
                     doCheckBatchAppendResponse();
                     break;
                 }

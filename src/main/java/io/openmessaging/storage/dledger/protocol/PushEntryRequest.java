@@ -25,6 +25,7 @@ public class PushEntryRequest extends RequestOrResponse {
     private long commitIndex = -1;
     private Type type = Type.APPEND;
     private DLedgerEntry entry;
+
     private int count = 0;
 //    private long firstIndex = -1;
     private List<DLedgerEntry> entries = new ArrayList<>();
@@ -69,6 +70,10 @@ public class PushEntryRequest extends RequestOrResponse {
 //    public long getFirstIndex() {
 //        return firstIndex;
 //    }
+
+    public void setCount(int count) {
+        this.count = count;
+    }
 
     public int getCount() {
         return count;
