@@ -574,11 +574,11 @@ public class DLedgerEntryPusher {
 
         private void doCheckBatchAppendResponse() throws Exception {
             //System.out.println("doCheckBatchAppendResponse()");
-            if (memberState.getPeersLiveTable().get(peerId) == Boolean.FALSE) {
-                //System.out.println("change to compare");
-                changeState(-1, PushEntryRequest.Type.COMPARE);
-                return;
-            }
+//            if (memberState.getPeersLiveTable().get(peerId) == Boolean.FALSE) {
+//                //System.out.println("change to compare");
+//                changeState(-1, PushEntryRequest.Type.COMPARE);
+//                return;
+//            }
 
             //System.out.println("resend");
             long peerWaterMark = getPeerWaterMark(term, peerId);
