@@ -370,10 +370,12 @@ public class DLedgerEntryPusher {
         private long compareIndex = -1;
         private long writeIndex = -1;
         private int maxPendingSize = 1000;
+        private int maxBatchPendingSize = 100;
         private long term = -1;
         private String leaderId = null;
         private long lastCheckLeakTimeMs = System.currentTimeMillis();
         private ConcurrentMap<Long, Long> pendingMap = new ConcurrentHashMap<>();
+        private ConcurrentMap<Long, Pair<Long, Integer>> batchPendingMap = new ConcurrentHashMap<>();
         private PushEntryRequest batchPushEntryRequest = new PushEntryRequest();
         private Quota quota = new Quota(dLedgerConfig.getPeerPushQuota());
         private long batchSize = 0;
@@ -421,7 +423,8 @@ public class DLedgerEntryPusher {
             batchPushEntryRequest.setLeaderId(leaderId);
             batchPushEntryRequest.setTerm(term);
             batchPushEntryRequest.setType(PushEntryRequest.Type.BATCH_APPEND);
-            batchPushEntryRequest.getEntries().clear();
+            batchPushEntryRequest.clearBatchRequest();
+            batchSize = 0;
         }
 
         private void checkQuotaAndWait(DLedgerEntry entry) {
@@ -478,14 +481,14 @@ public class DLedgerEntryPusher {
             //System.out.println(dLedgerConfig.getSelfId() + " send batchPushEntryRequest");
             batchPushEntryRequest.setCommitIndex(dLedgerStore.getCommittedIndex());
             CompletableFuture<PushEntryResponse> responseFuture = dLedgerRpcService.push(batchPushEntryRequest);
-            pendingMap.put(batchPushEntryRequest.getEntries().get(batchPushEntryRequest.getEntries().size() - 1).getIndex(), System.currentTimeMillis());
+            batchPendingMap.put(batchPushEntryRequest.getEntries().get(0).getIndex(), new Pair<>(System.currentTimeMillis(), batchPushEntryRequest.getCount()));
             responseFuture.whenComplete((x, ex) -> {
                 try {
                     PreConditions.check(ex == null, DLedgerResponseCode.UNKNOWN);
                     DLedgerResponseCode responseCode = DLedgerResponseCode.valueOf(x.getCode());
                     switch (responseCode) {
                         case SUCCESS:
-                            pendingMap.remove(x.getIndex());
+                            batchPendingMap.remove(x.getIndex());
                             updatePeerWaterMark(x.getTerm(), peerId, x.getIndex());
                             quorumAckChecker.wakeup();
                             break;
@@ -502,7 +505,7 @@ public class DLedgerEntryPusher {
                 }
             });
             lastPushCommitTimeMs = System.currentTimeMillis();
-            batchPushEntryRequest.getEntries().clear();
+            batchPushEntryRequest.clearBatchRequest();
             batchSize = 0;
         }
 
@@ -574,29 +577,26 @@ public class DLedgerEntryPusher {
                 return;
             }
 
-            if (DLedgerUtils.elapsed(lastCheckLeakTimeMs) > 1000) {
-                long peerWaterMark = getPeerWaterMark(term, peerId);
-                long firstIndex = Long.MAX_VALUE;
-                for (Long index : pendingMap.keySet()) {
-                    if (index < peerWaterMark) {
-                        pendingMap.remove(index);
-                    } else if (index < firstIndex) {
-                        firstIndex = index;
-                    }
-                }
-                if (firstIndex != Long.MAX_VALUE) {
-                    Long sendTimeMs = pendingMap.get(firstIndex);
-                    if (sendTimeMs != null && System.currentTimeMillis() - sendTimeMs > dLedgerConfig.getMaxPushTimeOutMs()) {
-                        logger.warn("[Push-{}]Retry to push entries from {}", peerId, peerWaterMark + 1);
-                        writeIndex = peerWaterMark + 1;
-                        pendingMap.clear();
-                        resetBatchPushEntryRequest();
-                    }
-                }
-                lastCheckLeakTimeMs = System.currentTimeMillis();
+            long peerWaterMark = getPeerWaterMark(term, peerId);
+            Pair pair = batchPendingMap.get(peerWaterMark + 1);
+            Long sendTimeMs = (Long) pair.getKey();
+            if (sendTimeMs != null && System.currentTimeMillis() - sendTimeMs > dLedgerConfig.getMaxPushTimeOutMs()) {
+                logger.warn("[Push-{}]Retry to push batch entry at {}", peerId, peerWaterMark + 1);
+                reSendBatchEntry(peerWaterMark + 1, (Integer) pair.getValue());
+            }
+        }
+
+        private void reSendBatchEntry(long firstIndex, int count) throws Exception {
+            batchPushEntryRequest.clearBatchRequest();
+
+            for (int i = 0; i < count; i++) {
+                DLedgerEntry entry = dLedgerStore.get(firstIndex + i);
+                batchPushEntryRequest.addEntry(entry);
             }
 
+            sendBatchPushEntryRequest();
         }
+
 
         private void doBatchAppend() throws Exception {
             //throw new UnsupportedOperationException("unsupported batch append");
@@ -608,15 +608,26 @@ public class DLedgerEntryPusher {
                 if (type.get() != PushEntryRequest.Type.BATCH_APPEND) {
                     break;
                 }
-                if (batchPushEntryRequest.getEntries().size() > 0 && DLedgerUtils.elapsed(lastPushCommitTimeMs) >= dLedgerConfig.getBatchPushMaxElapsedTime()) {
+                if (batchPushEntryRequest.getCount() > 0 && DLedgerUtils.elapsed(lastPushCommitTimeMs) >= dLedgerConfig.getBatchPushMaxElapsedTime()) {
                     sendBatchPushEntryRequest();
+                    break;
                 }
                 if (writeIndex > dLedgerStore.getLedgerEndIndex()) {
                     doCommit();
                     doCheckBatchAppendResponse();
                     break;
                 }
-                if (pendingMap.size() >= maxPendingSize) {
+                if (batchPendingMap.size() >= maxBatchPendingSize || (DLedgerUtils.elapsed(lastCheckLeakTimeMs) > 1000)) {
+                    long peerWaterMark = getPeerWaterMark(term, peerId);
+                    for (Map.Entry<Long, Pair<Long, Integer>> entry : batchPendingMap.entrySet()) {
+                        if (entry.getKey() + entry.getValue().getValue() < peerWaterMark) {
+                            batchPendingMap.remove(entry.getKey());
+                        }
+                    }
+                    lastCheckLeakTimeMs = System.currentTimeMillis();
+                }
+
+                if (batchPendingMap.size() >= maxBatchPendingSize) {
                     doCheckBatchAppendResponse();
                     break;
                 }
@@ -657,7 +668,7 @@ public class DLedgerEntryPusher {
                     if (dLedgerConfig.isEnableBatchPush()) {
                         if (this.type.compareAndSet(PushEntryRequest.Type.BATCH_APPEND, PushEntryRequest.Type.COMPARE)) {
                             compareIndex = -1;
-                            pendingMap.clear();
+                            batchPendingMap.clear();
                         }
                     } else {
                         if (this.type.compareAndSet(PushEntryRequest.Type.APPEND, PushEntryRequest.Type.COMPARE)) {

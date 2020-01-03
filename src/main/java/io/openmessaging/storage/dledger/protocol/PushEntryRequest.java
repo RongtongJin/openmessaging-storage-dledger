@@ -25,7 +25,8 @@ public class PushEntryRequest extends RequestOrResponse {
     private long commitIndex = -1;
     private Type type = Type.APPEND;
     private DLedgerEntry entry;
-
+    private int count = 0;
+//    private long firstIndex = -1;
     private List<DLedgerEntry> entries = new ArrayList<>();
 
     public DLedgerEntry getEntry() {
@@ -53,11 +54,30 @@ public class PushEntryRequest extends RequestOrResponse {
     }
 
     public void addEntry(DLedgerEntry entry) {
+//        if (firstIndex == -1) {
+//            firstIndex = entry.getIndex();
+//            System.out.println("add Entry,first Index " + firstIndex);
+//        }
         entries.add(entry);
+        count++;
     }
 
     public List<DLedgerEntry> getEntries() {
         return entries;
+    }
+
+//    public long getFirstIndex() {
+//        return firstIndex;
+//    }
+
+    public int getCount() {
+        return count;
+    }
+
+    public void clearBatchRequest() {
+        entries.clear();
+//        firstIndex = -1;
+        count = 0;
     }
 
     public enum Type {

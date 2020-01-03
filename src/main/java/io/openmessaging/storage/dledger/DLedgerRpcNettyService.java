@@ -19,6 +19,7 @@ package io.openmessaging.storage.dledger;
 
 import com.alibaba.fastjson.JSON;
 import io.netty.channel.ChannelHandlerContext;
+import io.openmessaging.storage.dledger.exception.InvokeAsyncTimeoutException;
 import io.openmessaging.storage.dledger.protocol.AppendEntryRequest;
 import io.openmessaging.storage.dledger.protocol.AppendEntryResponse;
 import io.openmessaging.storage.dledger.protocol.DLedgerRequestCode;
@@ -38,14 +39,12 @@ import io.openmessaging.storage.dledger.protocol.PushEntryResponse;
 import io.openmessaging.storage.dledger.protocol.RequestOrResponse;
 import io.openmessaging.storage.dledger.protocol.VoteRequest;
 import io.openmessaging.storage.dledger.protocol.VoteResponse;
-
+import io.openmessaging.storage.dledger.utils.DLedgerUtils;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicInteger;
-
-import io.openmessaging.storage.dledger.utils.DLedgerUtils;
 import org.apache.rocketmq.remoting.netty.NettyClientConfig;
 import org.apache.rocketmq.remoting.netty.NettyRemotingClient;
 import org.apache.rocketmq.remoting.netty.NettyRemotingServer;
@@ -122,8 +121,13 @@ public class DLedgerRpcNettyService extends DLedgerRpcService {
             RemotingCommand wrapperRequest = RemotingCommand.createRequestCommand(DLedgerRequestCode.HEART_BEAT.getCode(), null);
             wrapperRequest.setBody(JSON.toJSONBytes(request));
             remotingClient.invokeAsync(getPeerAddr(request), wrapperRequest, 3000, responseFuture -> {
-                HeartBeatResponse response = JSON.parseObject(responseFuture.getResponseCommand().getBody(), HeartBeatResponse.class);
-                future.complete(response);
+                RemotingCommand responseCommand = responseFuture.getResponseCommand();
+                if (responseCommand != null) {
+                    HeartBeatResponse response = JSON.parseObject(responseCommand.getBody(), HeartBeatResponse.class);
+                    future.complete(response);
+                } else {
+                    future.completeExceptionally(new InvokeAsyncTimeoutException());
+                }
             });
         } catch (Throwable t) {
             logger.error("Send heartBeat request failed {}", request.baseInfo(), t);
@@ -138,8 +142,13 @@ public class DLedgerRpcNettyService extends DLedgerRpcService {
             RemotingCommand wrapperRequest = RemotingCommand.createRequestCommand(DLedgerRequestCode.VOTE.getCode(), null);
             wrapperRequest.setBody(JSON.toJSONBytes(request));
             remotingClient.invokeAsync(getPeerAddr(request), wrapperRequest, 3000, responseFuture -> {
-                VoteResponse response = JSON.parseObject(responseFuture.getResponseCommand().getBody(), VoteResponse.class);
-                future.complete(response);
+                RemotingCommand responseCommand = responseFuture.getResponseCommand();
+                if (responseCommand != null) {
+                    VoteResponse response = JSON.parseObject(responseCommand.getBody(), VoteResponse.class);
+                    future.complete(response);
+                } else {
+                    future.completeExceptionally(new InvokeAsyncTimeoutException());
+                }
             });
         } catch (Throwable t) {
             logger.error("Send vote request failed {}", request.baseInfo(), t);
@@ -160,8 +169,13 @@ public class DLedgerRpcNettyService extends DLedgerRpcService {
             RemotingCommand wrapperRequest = RemotingCommand.createRequestCommand(DLedgerRequestCode.APPEND.getCode(), null);
             wrapperRequest.setBody(JSON.toJSONBytes(request));
             remotingClient.invokeAsync(getPeerAddr(request), wrapperRequest, 3000, responseFuture -> {
-                AppendEntryResponse response = JSON.parseObject(responseFuture.getResponseCommand().getBody(), AppendEntryResponse.class);
-                future.complete(response);
+                RemotingCommand responseCommand = responseFuture.getResponseCommand();
+                if (responseCommand != null) {
+                    AppendEntryResponse response = JSON.parseObject(responseCommand.getBody(), AppendEntryResponse.class);
+                    future.complete(response);
+                } else {
+                    future.completeExceptionally(new InvokeAsyncTimeoutException());
+                }
             });
         } catch (Throwable t) {
             logger.error("Send append request failed {}", request.baseInfo(), t);
@@ -192,9 +206,15 @@ public class DLedgerRpcNettyService extends DLedgerRpcService {
         try {
             RemotingCommand wrapperRequest = RemotingCommand.createRequestCommand(DLedgerRequestCode.PUSH.getCode(), null);
             wrapperRequest.setBody(JSON.toJSONBytes(request));
+            //System.out.println(JSON.toJSONString(request));
             remotingClient.invokeAsync(getPeerAddr(request), wrapperRequest, 3000, responseFuture -> {
-                PushEntryResponse response = JSON.parseObject(responseFuture.getResponseCommand().getBody(), PushEntryResponse.class);
-                future.complete(response);
+                RemotingCommand responseCommand = responseFuture.getResponseCommand();
+                if (responseCommand != null) {
+                    PushEntryResponse response = JSON.parseObject(responseCommand.getBody(), PushEntryResponse.class);
+                    future.complete(response);
+                } else {
+                    future.completeExceptionally(new InvokeAsyncTimeoutException());
+                }
             });
         } catch (Throwable t) {
             logger.error("Send push request failed {}", request.baseInfo(), t);
@@ -297,6 +317,7 @@ public class DLedgerRpcNettyService extends DLedgerRpcService {
             }
             case PUSH: {
                 PushEntryRequest pushEntryRequest = JSON.parseObject(request.getBody(), PushEntryRequest.class);
+                //System.out.println("receive: "+JSON.toJSONString(pushEntryRequest));
                 CompletableFuture<PushEntryResponse> future = handlePush(pushEntryRequest);
                 future.whenCompleteAsync((x, y) -> {
                     writeResponse(x, y, request, ctx);

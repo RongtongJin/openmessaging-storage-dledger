@@ -18,6 +18,7 @@
 package io.openmessaging.storage.dledger;
 
 import com.alibaba.fastjson.JSON;
+import io.openmessaging.storage.dledger.exception.InvokeAsyncTimeoutException;
 import io.openmessaging.storage.dledger.protocol.DLedgerResponseCode;
 import io.openmessaging.storage.dledger.protocol.HeartBeatRequest;
 import io.openmessaging.storage.dledger.protocol.HeartBeatResponse;
@@ -265,6 +266,9 @@ public class DLedgerLeaderElector {
             future.whenComplete((HeartBeatResponse x, Throwable ex) -> {
                 try {
                     if (ex != null) {
+                        if (ex instanceof InvokeAsyncTimeoutException) {
+                            memberState.getPeersLiveTable().put(id, Boolean.FALSE);
+                        }
                         throw ex;
                     }
                     switch (DLedgerResponseCode.valueOf(x.getCode())) {
