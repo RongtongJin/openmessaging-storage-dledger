@@ -53,7 +53,7 @@ public class DLedgerLeaderElector {
     private long lastLeaderHeartBeatTime = -1;
     private long lastSendHeartBeatTime = -1;
     private long lastSuccHeartBeatTime = -1;
-    private int heartBeatTimeIntervalMs = 2000;
+    private int heartBeatTimeIntervalMs = 1000;
     private int maxHeartBeatLeak = 3;
     //as a client
     private long nextTimeToRequestVote = -1;
@@ -482,7 +482,7 @@ public class DLedgerLeaderElector {
         }
 
         try {
-            voteLatch.await(2000, TimeUnit.MILLISECONDS);
+            voteLatch.await(2000 + random.nextInt(maxVoteIntervalMs), TimeUnit.MILLISECONDS);
         } catch (Throwable ignore) {
 
         }
