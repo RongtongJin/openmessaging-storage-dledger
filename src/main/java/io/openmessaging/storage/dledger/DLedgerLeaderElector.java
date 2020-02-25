@@ -53,7 +53,7 @@ public class DLedgerLeaderElector {
     private long lastLeaderHeartBeatTime = -1;
     private long lastSendHeartBeatTime = -1;
     private long lastSuccHeartBeatTime = -1;
-    private int heartBeatTimeIntervalMs = 1000;
+    private int heartBeatTimeIntervalMs = 2000;
     private int maxHeartBeatLeak = 3;
     //as a client
     private long nextTimeToRequestVote = -1;
