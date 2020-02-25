@@ -50,14 +50,14 @@ public class DLedgerLeaderElector {
 
     //as a server handler
     //record the last leader state
-    private long lastLeaderHeartBeatTime = -1;
-    private long lastSendHeartBeatTime = -1;
-    private long lastSuccHeartBeatTime = -1;
+    private volatile long lastLeaderHeartBeatTime = -1;
+    private volatile long lastSendHeartBeatTime = -1;
+    private volatile long lastSuccHeartBeatTime = -1;
     private int heartBeatTimeIntervalMs = 2000;
     private int maxHeartBeatLeak = 3;
     //as a client
     private long nextTimeToRequestVote = -1;
-    private boolean needIncreaseTermImmediately = false;
+    private volatile boolean needIncreaseTermImmediately = false;
     private int minVoteIntervalMs = 300;
     private int maxVoteIntervalMs = 1000;
 
@@ -382,7 +382,7 @@ public class DLedgerLeaderElector {
             return System.currentTimeMillis() + dLedgerConfig.getMinTakeLeadershipVoteIntervalMs() +
                 random.nextInt(dLedgerConfig.getMaxTakeLeadershipVoteIntervalMs() - dLedgerConfig.getMinTakeLeadershipVoteIntervalMs());
         }
-        return System.currentTimeMillis() + minVoteIntervalMs + random.nextInt(maxVoteIntervalMs - minVoteIntervalMs);
+        return System.currentTimeMillis() + lastVoteCost + minVoteIntervalMs + random.nextInt(maxVoteIntervalMs - minVoteIntervalMs);
     }
 
     private void maintainAsCandidate() throws Exception {
@@ -482,7 +482,7 @@ public class DLedgerLeaderElector {
         }
 
         try {
-            voteLatch.await(2000 + random.nextInt(maxVoteIntervalMs), TimeUnit.MILLISECONDS);
+            voteLatch.await(1000 + random.nextInt(maxVoteIntervalMs), TimeUnit.MILLISECONDS);
         } catch (Throwable ignore) {
 
         }
@@ -518,7 +518,6 @@ public class DLedgerLeaderElector {
             logger.info("[{}] [VOTE_RESULT] has been elected to be the leader in term {}", memberState.getSelfId(), term);
             changeRoleToLeader(term);
         }
-
     }
 
     /**
