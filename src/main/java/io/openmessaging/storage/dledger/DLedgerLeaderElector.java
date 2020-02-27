@@ -228,8 +228,6 @@ public class DLedgerLeaderElector {
                 return CompletableFuture.completedFuture(new VoteResponse(request).term(memberState.currTerm()).voteResult(VoteResponse.RESULT.REJECT_TERM_NOT_READY));
             }
 
-
-
             if (request.getTerm() < memberState.getLedgerEndTerm()) {
                 return CompletableFuture.completedFuture(new VoteResponse(request).term(memberState.getLedgerEndTerm()).voteResult(VoteResponse.RESULT.REJECT_TERM_SMALL_THAN_LEDGER));
             }
@@ -418,7 +416,7 @@ public class DLedgerLeaderElector {
 
         long startVoteTimeMs = System.currentTimeMillis();
         final List<CompletableFuture<VoteResponse>> quorumVoteResponses = voteForQuorumResponses(term, ledgerEndTerm, ledgerEndIndex);
-        final AtomicLong knownMaxTermInGroup = new AtomicLong(-1);
+        final AtomicLong knownMaxTermInGroup = new AtomicLong(term);
         final AtomicInteger allNum = new AtomicInteger(0);
         final AtomicInteger validNum = new AtomicInteger(0);
         final AtomicInteger acceptedNum = new AtomicInteger(0);
@@ -503,7 +501,7 @@ public class DLedgerLeaderElector {
             nextTimeToRequestVote = getNextTimeToRequestVote();
         } else if (!memberState.isQuorum(validNum.get() - biggerLedgerNum.get())) {
             parseResult = VoteResponse.ParseResult.WAIT_TO_REVOTE;
-            nextTimeToRequestVote = getNextTimeToRequestVote();
+            nextTimeToRequestVote = getNextTimeToRequestVote() + maxVoteIntervalMs;
         } else if (memberState.isQuorum(acceptedNum.get())) {
             parseResult = VoteResponse.ParseResult.PASSED;
         } else if (memberState.isQuorum(acceptedNum.get() + notReadyTermNum.get())) {
