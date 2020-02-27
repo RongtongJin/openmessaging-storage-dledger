@@ -499,13 +499,13 @@ public class DLedgerLeaderElector {
         } else if (!memberState.isQuorum(validNum.get())) {
             parseResult = VoteResponse.ParseResult.WAIT_TO_REVOTE;
             nextTimeToRequestVote = getNextTimeToRequestVote();
+        } else if (!memberState.isQuorum(validNum.get() - biggerLedgerNum.get())) {
+            parseResult = VoteResponse.ParseResult.WAIT_TO_REVOTE;
+            nextTimeToRequestVote = getNextTimeToRequestVote();
         } else if (memberState.isQuorum(acceptedNum.get())) {
             parseResult = VoteResponse.ParseResult.PASSED;
         } else if (memberState.isQuorum(acceptedNum.get() + notReadyTermNum.get())) {
             parseResult = VoteResponse.ParseResult.REVOTE_IMMEDIATELY;
-        } else if (memberState.isQuorum(acceptedNum.get() + biggerLedgerNum.get() + notReadyTermNum.get())) {
-            parseResult = VoteResponse.ParseResult.WAIT_TO_REVOTE;
-            nextTimeToRequestVote = getNextTimeToRequestVote();
         } else {
             parseResult = VoteResponse.ParseResult.WAIT_TO_VOTE_NEXT;
             nextTimeToRequestVote = getNextTimeToRequestVote();
