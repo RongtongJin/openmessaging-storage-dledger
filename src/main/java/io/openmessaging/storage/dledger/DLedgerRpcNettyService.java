@@ -69,32 +69,11 @@ public class DLedgerRpcNettyService extends DLedgerRpcService {
 
     private DLedgerServer dLedgerServer;
 
-    private ExecutorService futureExecutor = Executors.newFixedThreadPool(4, new ThreadFactory() {
-        private AtomicInteger threadIndex = new AtomicInteger(0);
+    private ExecutorService voteInvokeExecutor;
 
-        @Override
-        public Thread newThread(Runnable r) {
-            return new Thread(r, "FutureExecutor_" + this.threadIndex.incrementAndGet());
-        }
-    });
+    private ExecutorService heartBeatInvokeExecutor;
 
-    private ExecutorService voteInvokeExecutor = Executors.newFixedThreadPool(2, new ThreadFactory() {
-        private AtomicInteger threadIndex = new AtomicInteger(0);
-
-        @Override
-        public Thread newThread(Runnable r) {
-            return new Thread(r, "voteInvokeExecutor_" + this.threadIndex.incrementAndGet());
-        }
-    });
-
-    private ExecutorService heartBeatInvokeExecutor = Executors.newFixedThreadPool(2, new ThreadFactory() {
-        private AtomicInteger threadIndex = new AtomicInteger(0);
-
-        @Override
-        public Thread newThread(Runnable r) {
-            return new Thread(r, "heartBeatInvokeExecutor_" + this.threadIndex.incrementAndGet());
-        }
-    });
+    private ExecutorService futureExecutor;
 
     public DLedgerRpcNettyService(DLedgerServer dLedgerServer) {
         this.dLedgerServer = dLedgerServer;
@@ -124,6 +103,31 @@ public class DLedgerRpcNettyService extends DLedgerRpcService {
 
         //start the remoting client
         this.remotingClient = new NettyRemotingClient(new NettyClientConfig(), null);
+
+        voteInvokeExecutor = Executors.newCachedThreadPool(new ThreadFactory() {
+            private AtomicInteger threadIndex = new AtomicInteger(0);
+
+            @Override public Thread newThread(Runnable r) {
+                return new Thread(r, "voteInvokeExecutor_" + this.threadIndex.incrementAndGet());
+            }
+        });
+
+        heartBeatInvokeExecutor = Executors.newCachedThreadPool(new ThreadFactory() {
+            private AtomicInteger threadIndex = new AtomicInteger(0);
+
+            @Override public Thread newThread(Runnable r) {
+                return new Thread(r, "heartBeatInvokeExecutor_" + this.threadIndex.incrementAndGet());
+            }
+        });
+
+        futureExecutor = Executors.newFixedThreadPool(4, new ThreadFactory() {
+            private AtomicInteger threadIndex = new AtomicInteger(0);
+
+            @Override
+            public Thread newThread(Runnable r) {
+                return new Thread(r, "FutureExecutor_" + this.threadIndex.incrementAndGet());
+            }
+        });
 
     }
 
